@@ -295,7 +295,7 @@ export async function composeDesktopCore(
   void providerMaintenanceReady.then(() =>
     startCodexStateDbBackfillRecoveryInBackground(getOrcaManagedCodexHomePath())
   )
-  // Grok's, Cursor's and Droid's own MCP files follow the host list; off with the MCP servers switch.
+  // Grok's, Cursor's and Droid's own MCP files follow the host list.
   void providerMaintenanceReady.then(() => deps.registerCleanup(startMcpAgentFileSync()))
   // Register launch reconciliation now; defer background probes and scratch cleanup until first paint.
   startCodexHooks({
