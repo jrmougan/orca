@@ -19,6 +19,8 @@ type SubscriptionFrameRouterOptions<TResult> = {
   send: (frame: string) => void
   fail: (error: RemoteRuntimeClientError) => void
   onAuthenticated: () => void
+  /** Runs on the authenticated socket before the request; a rejection fails the subscription unsent. */
+  admitRequest?: () => Promise<void>
   // Responses to requests the caller sent over this same socket; unmatched ids stay a hard failure.
   resolvePendingRequest?: (response: RuntimeRpcResponse<unknown>) => boolean
   callbacks: {
@@ -113,6 +115,26 @@ export class RemoteRuntimeSubscriptionFrameRouter<TResult> {
       return
     }
     this.state = 'ready'
+    if (!this.options.admitRequest) {
+      this.sendRequest()
+      return
+    }
+    this.options.admitRequest().then(
+      () => {
+        if (!this.options.isSettled()) {
+          this.sendRequest()
+        }
+      },
+      (error: unknown) =>
+        this.options.fail(
+          error instanceof RemoteRuntimeClientError
+            ? error
+            : new RemoteRuntimeClientError('remote_runtime_unavailable', String(error))
+        )
+    )
+  }
+
+  private sendRequest(): void {
     this.options.send(this.options.handshake.channel.sealText(this.options.serializedRequest))
     this.options.onAuthenticated()
   }

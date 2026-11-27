@@ -19,6 +19,7 @@ import { isRuntimeEnvironmentManuallyDisconnected } from '../connectivity/runtim
 import { getPreferredPairedRuntimeConnection } from '../../../../shared/remote-runtime/host-catalog/runtime-environments'
 import { getAcceptedRuntimeEnvironmentCapabilityOutcome } from '../connections/runtime-environment-capability-evidence'
 import { getRuntimeEnvironmentStatusSnapshot } from '../connections/runtime-environment-request-connections'
+import { parseRelayedRuntimeEnvironmentId } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 
 export type RuntimeEnvironmentSubscribeArgs = {
   selector: string
@@ -70,7 +71,13 @@ export async function resolveSubscriptionEnvironment(
   userDataPath: string,
   args: RuntimeEnvironmentSubscribeArgs
 ) {
-  const environment = await resolveEnvironment(userDataPath, args.selector)
+  // A relayed server rides its owner's pairing; its own runtime is proven on the socket that sends.
+  const relayed = parseRelayedRuntimeEnvironmentId(args.selector)
+  if (relayed && args.setupResult === 'crew') {
+    throw new RuntimeEnvironmentSetupGuardError('Crew streams are not relayed', { kind: 'input' })
+  }
+  const selector = relayed?.ownerEnvironmentId ?? args.selector
+  const environment = await resolveEnvironment(userDataPath, selector)
   if (isRuntimeEnvironmentManuallyDisconnected(environment.id)) {
     throw new RuntimeEnvironmentSetupGuardError('runtime_manually_disconnected', {
       kind: 'manual-disconnect'
@@ -87,6 +94,7 @@ export async function resolveSubscriptionEnvironment(
     )
   }
   if (
+    !relayed &&
     args.expectedEnvironmentRuntimeId !== undefined &&
     environment.runtimeId !== args.expectedEnvironmentRuntimeId
   ) {
@@ -95,7 +103,7 @@ export async function resolveSubscriptionEnvironment(
       { kind: 'source-retired' }
     )
   }
-  return { environment, pairingRevision }
+  return { environment, pairingRevision, relayed }
 }
 
 export async function assertCrewSubscriptionCurrent(

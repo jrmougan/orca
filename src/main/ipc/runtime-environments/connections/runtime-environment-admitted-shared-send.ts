@@ -8,26 +8,40 @@ export type AdmittingSharedControlSocket = Pick<
   'request' | 'socketGeneration'
 >
 
-/** Send only on the shared socket whose own status.get passed `admits`; null if it did not, or the socket changed. */
+/** The socket (by generation) each connection last passed an admission on, kept by the caller. */
+export type SharedControlSocketAdmissions = WeakMap<AdmittingSharedControlSocket, number>
+
+/**
+ * Send only on the shared socket whose own status.get passed `admits`; null if it did not, or the
+ * socket changed. With `admissions`, a socket that already passed is not asked again.
+ */
 export async function sendOnAdmittedSharedControlSocket<TResult>(
   shared: AdmittingSharedControlSocket,
   call: RuntimeEnvironmentCall,
-  admits: (status: RuntimeStatus) => boolean
+  admits: (status: RuntimeStatus) => boolean,
+  admissions?: SharedControlSocketAdmissions
 ): Promise<RuntimeRpcResponse<TResult> | null> {
-  let statusSocket: number | undefined
-  const status = await shared.request<RuntimeStatus>(
-    'status.get',
-    undefined,
-    call.timeoutMs,
-    undefined,
-    call.signal,
-    {
-      beforeSend: () => void (statusSocket = shared.socketGeneration.peek()),
-      idlePassive: call.idlePassive
+  let statusSocket = admissions?.get(shared)
+  if (statusSocket === undefined || statusSocket !== shared.socketGeneration.peek()) {
+    statusSocket = undefined
+    admissions?.delete(shared)
+    const status = await shared.request<RuntimeStatus>(
+      'status.get',
+      undefined,
+      call.timeoutMs,
+      undefined,
+      call.signal,
+      {
+        beforeSend: () => void (statusSocket = shared.socketGeneration.peek()),
+        idlePassive: call.idlePassive
+      }
+    )
+    if (!status.ok || !admits(status.result)) {
+      return null
     }
-  )
-  if (!status.ok || !admits(status.result)) {
-    return null
+    if (statusSocket !== undefined) {
+      admissions?.set(shared, statusSocket)
+    }
   }
   let socketChanged = false
   const beforeSend = (): void => {

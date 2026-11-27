@@ -154,6 +154,16 @@ function registerPassiveStatusHandler(getUserDataPath: () => string): void {
       _event,
       args: { selector: string; timeoutMs?: number; observeOnly?: true; force?: true }
     ): Promise<RuntimeRpcResponse<RuntimeStatus>> => {
+      // A relayed server has no status owner here: its status is one relayed call, answered by it.
+      if (isRelayedRuntimeEnvironmentId(args.selector)) {
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: status.get answers a RuntimeStatus; the relayed call is typed for any method.
+        return callRelayedRuntimeHost(getUserDataPath(), {
+          selector: args.selector,
+          method: 'status.get',
+          timeoutMs: args.timeoutMs,
+          background: true
+        }) as Promise<RuntimeRpcResponse<RuntimeStatus>>
+      }
       const environment = await resolveEnvironment(getUserDataPath(), args.selector)
       if (isRuntimeEnvironmentManuallyDisconnected(environment.id)) {
         return manuallyDisconnectedResponse(environment)

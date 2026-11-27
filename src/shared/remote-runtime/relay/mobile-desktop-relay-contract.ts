@@ -19,6 +19,11 @@ export const MOBILE_RELAY_HOST_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY =
 // Stamped per connection, so it is not in RUNTIME_CAPABILITIES: only a server wired to its hosts relays.
 export const RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY = 'runtime.client-relay.v1' as const
 
+// Relayed terminal.multiplex needs both sides: the server stamps it beside the relay, and the client
+// declares it at auth. Without the client's declaration the relay keeps refusing terminal.multiplex.
+export const RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY =
+  'runtime.client-relay.terminal-multiplex.v1' as const
+
 /** A desktop relays a phone to a server that mints delegated phone devices; each side advertises. */
 export const MOBILE_RELAY_RUNTIME_CAPABILITIES = [
   DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,

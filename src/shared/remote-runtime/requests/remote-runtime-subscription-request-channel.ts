@@ -7,7 +7,7 @@ import {
   REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES,
   serializeRemoteRuntimeRpcRequest
 } from '../remote-runtime-memory-limits'
-import type { RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
+import type { RuntimeOrchestrationEnvelope, RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
 import { isSafeTimerDelayMs, MAX_TIMER_DELAY_MS } from '../../concurrency/timer-delay'
 
 type PendingRemoteRuntimeSubscriptionRequest = {
@@ -37,7 +37,8 @@ export class RemoteRuntimeSubscriptionRequestChannel {
   send = (
     method: string,
     params: unknown,
-    timeoutMs: number
+    timeoutMs: number,
+    envelope?: RuntimeOrchestrationEnvelope
   ): Promise<RuntimeRpcResponse<unknown>> => {
     if (!isSafeTimerDelayMs(timeoutMs)) {
       return Promise.reject(
@@ -72,6 +73,7 @@ export class RemoteRuntimeSubscriptionRequestChannel {
         deviceToken: this.options.connection.credential.deviceToken,
         method,
         params,
+        envelope,
         // Why: the host closes the shared socket on an oversized frame, ending the subscription too.
         maxBytes: REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES
       })

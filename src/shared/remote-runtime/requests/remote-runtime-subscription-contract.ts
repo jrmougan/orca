@@ -1,6 +1,6 @@
 import type { RemoteRuntimeClientError } from '../remote-runtime-client-error'
 import type { RuntimeCapability } from '../protocol/protocol-version'
-import type { RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
+import type { RuntimeOrchestrationEnvelope, RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
 import type { RemoteRuntimeSocketLivenessOptions } from '../remote-runtime-socket-liveness'
 import type {
   RemoteRuntimeOutboundMemoryBudget,
@@ -18,6 +18,12 @@ export type RemoteRuntimeTransportSubscription = {
   ) => Promise<RuntimeRpcResponse<unknown>>
 }
 
+export type RemoteRuntimeSubscriptionAdmissionRequest = (
+  method: string,
+  params: unknown,
+  envelope?: RuntimeOrchestrationEnvelope
+) => Promise<RuntimeRpcResponse<unknown>>
+
 export type RemoteRuntimeTransportSubscriptionCallbacks<TResult = unknown> = {
   onResponse: (response: RuntimeRpcResponse<TResult>) => void
   onBinary?: (bytes: Uint8Array<ArrayBufferLike>) => void
@@ -33,6 +39,13 @@ export type RemoteRuntimeSubscriptionOptions = RemoteRuntimeSocketLivenessOption
   perMessageDeflate?: boolean
   outboundQueue?: RemoteRuntimeOutboundQueueOptions
   outboundMemoryBudget?: RemoteRuntimeOutboundMemoryBudget
+  /** Sent with the subscription request (a relayed `executionHost`). */
+  envelope?: RuntimeOrchestrationEnvelope
+  /**
+   * Decides, on this socket once it is authenticated, whether the request may be sent at all;
+   * `request` asks over the same socket. A rejection closes the socket with the request unsent.
+   */
+  admit?: (request: RemoteRuntimeSubscriptionAdmissionRequest) => Promise<void>
   // Override to test ordering against the subscription-start timeout without production waits.
   connectTimeoutMs?: number
 }

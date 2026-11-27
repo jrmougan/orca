@@ -13,7 +13,10 @@ import type * as SubscriptionSetup from '../../../../shared/remote-runtime/host-
 import type { RemoteRuntimeTransportSubscription } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-contract'
 import type { DocumentDeliveryEndpoint } from '../../../../shared/backend/document-delivery-endpoint'
 import { getRuntimeEnvironmentTransportGeneration } from '../connections/runtime-environment-transport-generation'
-import { subscribeRuntimeEnvironment } from '../requests/runtime-environment-transport-routing'
+import {
+  openRuntimeEnvironmentSubscription,
+  type RuntimeEnvironmentSubscriptionCallbacks
+} from '../requests/runtime-environment-relayed-host-subscription'
 import { registerDocumentClientEventsStream } from './shared-runtime-client-events'
 
 /** Opens one runtime subscription owned by `document`; it retires with that document. */
@@ -63,7 +66,7 @@ export async function subscribeRuntimeEnvironmentForDocument(
     )
     pendingSubscriptions.set(subscriptionId, pending)
     setupSignal = setupController.signal
-    const { environment, pairingRevision } = await resolveSubscriptionEnvironment(
+    const { environment, pairingRevision, relayed } = await resolveSubscriptionEnvironment(
       getUserDataPath(),
       args
     )
@@ -93,8 +96,9 @@ export async function subscribeRuntimeEnvironmentForDocument(
     if (!document.isCurrent()) {
       throw new Error('The window that started this subscription went away')
     }
+    // Keyed by the saved server: a relayed server's frames are never recorded as its owner's.
     const associationObserver =
-      args.method === 'agentSession.subscribeStatus'
+      !relayed && args.method === 'agentSession.subscribeStatus'
         ? createAssociationObserver?.(
             environment.id,
             JSON.stringify([
@@ -104,7 +108,7 @@ export async function subscribeRuntimeEnvironmentForDocument(
           )
         : undefined
     const sharedClientEvents =
-      args.method === 'runtime.clientEvents.subscribe'
+      !relayed && args.method === 'runtime.clientEvents.subscribe'
         ? registerDocumentClientEventsStream(environment.id, transportGeneration)
         : undefined
     let rendererGone = document.isGone()
@@ -147,62 +151,64 @@ export async function subscribeRuntimeEnvironmentForDocument(
     closeOperation = closeSubscription
     try {
       operation = 'subscription'
-      subscription = await subscribeRuntimeEnvironment(
-        getUserDataPath(),
-        environment.id,
-        args.method,
-        args.params,
-        args.timeoutMs,
-        {
-          onEvent: (payload) => {
-            if (
-              rendererGone ||
-              (pendingSubscriptions.get(subscriptionId) !== pending &&
-                remoteRuntimeSubscriptions.get(subscriptionId)?.setupController !== setupController)
-            ) {
-              return
-            }
-            if (payload.type === 'close') {
-              // Retirement advances generation before close; the old generation still needs its terminal notification.
-              notifyClosed()
-              return
-            }
-            if (transportIsCurrent() && !document.isGone()) {
-              document.send('runtimeEnvironments:subscriptionEvent', {
-                subscriptionId,
-                ...payload
-              })
-              if (payload.type === 'response' && payload.response.ok) {
-                try {
-                  associationObserver?.observe(payload.response.result)
-                } catch (error) {
-                  console.warn('[ai-vault] association observation failed', error)
-                }
+      const callbacks: RuntimeEnvironmentSubscriptionCallbacks = {
+        onEvent: (payload) => {
+          if (
+            rendererGone ||
+            (pendingSubscriptions.get(subscriptionId) !== pending &&
+              remoteRuntimeSubscriptions.get(subscriptionId)?.setupController !== setupController)
+          ) {
+            return
+          }
+          if (payload.type === 'close') {
+            // Retirement advances generation before close; the old generation still needs its terminal notification.
+            notifyClosed()
+            return
+          }
+          if (transportIsCurrent() && !document.isGone()) {
+            document.send('runtimeEnvironments:subscriptionEvent', {
+              subscriptionId,
+              ...payload
+            })
+            if (payload.type === 'response' && payload.response.ok) {
+              try {
+                associationObserver?.observe(payload.response.result)
+              } catch (error) {
+                console.warn('[ai-vault] association observation failed', error)
               }
-              // After the send, so recording never delays or changes what the window gets.
-              if (payload.type === 'response') {
-                sharedClientEvents?.onResponse(payload.response)
+            }
+            // After the send, so recording never delays or changes what the window gets.
+            if (payload.type === 'response') {
+              sharedClientEvents?.onResponse(payload.response)
+              if (!relayed) {
                 recordLayoutFrame(environment.id, args.method, payload.response)
               }
             }
-          },
-          onClose: () => {
-            transportClosed = true
-            sharedClientEvents?.onTransportClose()
-            if (rendererGone) {
-              return
-            }
-            const retained = remoteRuntimeSubscriptions.get(subscriptionId) ?? null
-            if (retained?.setupController === setupController) {
-              retained.disposeRendererLifetime()
-              remoteRuntimeSubscriptions.delete(subscriptionId)
-            }
           }
         },
-        () => transportIsCurrent() && !setupController.signal.aborted,
-        setupController.signal,
-        args.background || args.wake ? { background: args.background, wake: args.wake } : undefined,
-        crewResult
+        onClose: () => {
+          transportClosed = true
+          sharedClientEvents?.onTransportClose()
+          if (rendererGone) {
+            return
+          }
+          const retained = remoteRuntimeSubscriptions.get(subscriptionId) ?? null
+          if (retained?.setupController === setupController) {
+            retained.disposeRendererLifetime()
+            remoteRuntimeSubscriptions.delete(subscriptionId)
+          }
+        }
+      }
+      subscription = await openRuntimeEnvironmentSubscription({
+        userDataPath: getUserDataPath(),
+        environmentId: environment.id,
+        relayed: relayed !== null,
+        pairingRevision,
+        args,
+        callbacks,
+        isCurrent: () => transportIsCurrent() && !setupController.signal.aborted,
+        signal: setupController.signal,
+        crewAttempt: crewResult
           ? {
               assertCurrent: assertCrewCurrent,
               observeFailure: (value) => {
@@ -210,7 +216,7 @@ export async function subscribeRuntimeEnvironmentForDocument(
               }
             }
           : undefined
-      )
+      })
     } catch (error) {
       if (pendingSubscriptions.get(subscriptionId) === pending) {
         pendingSubscriptions.delete(subscriptionId)

@@ -47,6 +47,7 @@ export async function subscribeRemoteRuntimeTransport<TResult>(
     deviceToken: connection.credential.deviceToken,
     method,
     params,
+    envelope: options?.envelope,
     idlePassive: options?.idlePassive
   })
   return await new Promise((resolve, reject) => {
@@ -82,6 +83,12 @@ export async function subscribeRemoteRuntimeTransport<TResult>(
       send: (frame) => ws?.send(frame),
       fail: (error) => fail(error),
       onAuthenticated: () => succeed(),
+      admitRequest: options?.admit
+        ? () =>
+            options.admit!((admissionMethod, admissionParams, envelope) =>
+              requestChannel.send(admissionMethod, admissionParams, timeoutMs, envelope)
+            )
+        : undefined,
       resolvePendingRequest: (response) => requestChannel.resolveResponse(response),
       callbacks
     })
