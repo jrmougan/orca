@@ -1,3 +1,5 @@
+import { runtimeEnvironmentPairingOwnerId as pairingOwnerId } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
+
 export type RuntimeEnvironmentRegistration = Readonly<{ revision: number }>
 
 const registrations = new Map<string, RuntimeEnvironmentRegistration>()
@@ -96,15 +98,16 @@ export function onRuntimeEnvironmentRevisionsChanged(
   return () => revisionChangeListeners.delete(listener)
 }
 
+/** A relayed server has no pairing of its own: every read below answers for the server that relays to it. */
 export function getRuntimeEnvironmentRevision(environmentId: string): number | undefined {
-  return registrations.get(environmentId)?.revision
+  return registrations.get(pairingOwnerId(environmentId))?.revision
 }
 
 /** Identity survives equal-revision publications, but never removal or a pairing transition. */
 export function getRuntimeEnvironmentRegistration(
   environmentId: string
 ): RuntimeEnvironmentRegistration | undefined {
-  return registrations.get(environmentId)
+  return registrations.get(pairingOwnerId(environmentId))
 }
 
 /**
@@ -126,7 +129,7 @@ export function snapshotRuntimeEnvironmentRegistrations(
 export function runtimeEnvironmentContinuityStamp(environmentId: string): string {
   return JSON.stringify([
     getRuntimeEnvironmentRevision(environmentId),
-    pendingContinuationByEnvironmentId.get(environmentId)
+    pendingContinuationByEnvironmentId.get(pairingOwnerId(environmentId))
   ])
 }
 
@@ -141,7 +144,7 @@ export function resolveContinuedRuntimeEnvironmentRevision(
   if (revision === undefined) {
     return getRuntimeEnvironmentRevision(environmentId)
   }
-  const continued = continuedRevisionsByEnvironmentId.get(environmentId)
+  const continued = continuedRevisionsByEnvironmentId.get(pairingOwnerId(environmentId))
   let current = revision
   const seen = new Set<number>()
   while (continued?.has(current) && !seen.has(current)) {
@@ -157,7 +160,8 @@ export function isRuntimeEnvironmentContinuationPending(
   revision: number | undefined
 ): boolean {
   return (
-    revision !== undefined && pendingContinuationByEnvironmentId.get(environmentId) === revision
+    revision !== undefined &&
+    pendingContinuationByEnvironmentId.get(pairingOwnerId(environmentId)) === revision
   )
 }
 

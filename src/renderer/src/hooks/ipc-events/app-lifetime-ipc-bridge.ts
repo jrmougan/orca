@@ -1,3 +1,4 @@
+import { installRelayedWslHostsPolling } from './relayed-wsl-hosts-polling'
 import { installBrowserInitializationPresentationLifetime } from '@/runtime/web-session-tabs-sync/tab-projection/browser-initialization-presentation'
 import { applySleepingMailWorktrees } from '@/attention/sleeping-mail-worktrees'
 import { observeJiraImageHostStatus } from '@/runtime/jira/runtime-jira-image-cache'
@@ -90,6 +91,10 @@ export function installAppLifetimeIpcEvents(): () => void {
     )
   )
   unsubs.push(installBotHostListing(useAppStore, isPairedWebClientWindow()))
+  // The web client has no main process to route a relayed host's calls.
+  if (!isPairedWebClientWindow()) {
+    unsubs.push(installRelayedWslHostsPolling())
+  }
   const stopSessionWorkerNotices = window.api.runtime.onOrchestrationSessionWorkersChanged?.(
     ({ sessionId }) => noteOrchestrationSessionWorkersChanged(null, sessionId)
   )

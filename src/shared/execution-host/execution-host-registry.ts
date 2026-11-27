@@ -17,6 +17,10 @@ import type { Repo } from '../repository/repo-types'
 import { annotateManagedOrcadExecutionHosts } from './managed-orcad-execution-host'
 import { getSshConnectionHealth, type EphemeralVmHostLifecycle } from './execution-host-health'
 import { applyEphemeralVmHostLifecycles } from './execution-host-vm-lifecycle'
+import {
+  annotateRelayedWslExecutionHosts,
+  type RelayedWslHostSummary
+} from './relayed-wsl-execution-host'
 import type {
   ExecutionHostRegistryEntry,
   RuntimeStatusByEnvironmentId,
@@ -117,6 +121,8 @@ export function buildExecutionHostRegistry(args: {
   localHostLabelIsDefault?: boolean
   /** VM runtime records by the server they host; their lifecycle outranks transport health. */
   ephemeralVmHosts?: readonly EphemeralVmHostLifecycle[]
+  /** WSL hosts of paired servers, as those servers' relay listed them. */
+  relayedWslHosts?: readonly RelayedWslHostSummary[]
 }): ExecutionHostRegistryEntry[] {
   const hosts = new Map<ExecutionHostId, ExecutionHostRegistryEntry>()
   hosts.set(LOCAL_EXECUTION_HOST_ID, {
@@ -216,6 +222,8 @@ export function buildExecutionHostRegistry(args: {
     sshConnectionStates: args.sshConnectionStates
   })
   applyEphemeralVmHostLifecycles(hosts, args.ephemeralVmHosts, args.runtimeStatusByEnvironmentId)
+  // Last: it reads the owner's settled label, merge and health.
+  annotateRelayedWslExecutionHosts({ hosts, relayedWslHosts: args.relayedWslHosts })
 
   const overrides = args.hostLabelOverrides
   if (!overrides || overrides.size === 0) {

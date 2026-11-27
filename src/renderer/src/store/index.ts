@@ -35,6 +35,7 @@ import { createRateLimitSlice } from './slices/usage/rate-limits'
 import { createSshSlice } from './slices/ssh/create-ssh-slice'
 import { createRuntimeEnvironmentSshSlice } from './slices/ssh/runtime-environment-ssh'
 import { createWslHostsSlice } from './slices/wsl/wsl-hosts'
+import { createRelayedWslHostsSlice } from './slices/relayed-hosts/relayed-wsl-hosts'
 import { createAgentStatusSlice } from './slices/agent-status/agent-status'
 import { createPaneForegroundAgentSlice } from './slices/agent-status/pane-authority/pane-foreground-agent'
 import { createDiffCommentsSlice } from './slices/diff-comments/create-diff-comments-slice'
@@ -138,6 +139,7 @@ export const useAppStore = create<AppState>()(
               ...createSshSlice(...a),
               ...createRuntimeEnvironmentSshSlice(...a),
               ...createWslHostsSlice(...a),
+              ...createRelayedWslHostsSlice(...a),
               ...createAgentStatusSlice(...a),
               ...createPaneForegroundAgentSlice(...a),
               ...createDiffCommentsSlice(...a),

@@ -26,6 +26,7 @@ import type { RateLimitSlice } from './slices/usage/rate-limits'
 import type { SshSlice } from './slices/ssh/create-ssh-slice'
 import type { RuntimeEnvironmentSshSlice } from './slices/ssh/runtime-environment-ssh'
 import type { WslHostsSlice } from './slices/wsl/wsl-hosts'
+import type { RelayedWslHostsSlice } from './slices/relayed-hosts/relayed-wsl-hosts'
 import type { AgentStatusSlice } from './slices/agent-status/contracts/agent-status-slice-contract'
 import type { PaneForegroundAgentSlice } from './slices/agent-status/pane-authority/pane-foreground-agent'
 import type { DiffCommentsSlice } from './slices/diff-comments/create-diff-comments-slice'
@@ -80,6 +81,7 @@ export type AppState = RepoSlice &
   SshSlice &
   RuntimeEnvironmentSshSlice &
   WslHostsSlice &
+  RelayedWslHostsSlice &
   AgentStatusSlice &
   PaneForegroundAgentSlice &
   DiffCommentsSlice &

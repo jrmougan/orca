@@ -1,7 +1,10 @@
+import { runtimeEnvironmentPairingOwnerId } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
+
 const connectionGenerationByEnvironment = new Map<string, number>()
 
+/** A relayed server rides its owner's connection, so it answers with the owner's generation. */
 export function getRuntimeEnvironmentConnectionGeneration(environmentId: string): number {
-  return connectionGenerationByEnvironment.get(environmentId) ?? 0
+  return connectionGenerationByEnvironment.get(runtimeEnvironmentPairingOwnerId(environmentId)) ?? 0
 }
 
 export function advanceRuntimeEnvironmentConnectionGeneration(environmentId: string): number {

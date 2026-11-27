@@ -1,12 +1,20 @@
+import { runtimeEnvironmentPairingOwnerId } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { parseExecutionHostId } from '../../../../shared/execution-host/execution-host'
 
-/** Match only explicitly removed runtime IDs; serving-local runtime stamps may never have belonged to this instance’s saved list, so absence cannot prove removal. */
+/**
+ * Match only explicitly removed runtime IDs; serving-local runtime stamps may never have belonged to this instance’s saved list, so absence cannot prove removal.
+ * A relayed server is removed with the paired server that relays to it.
+ */
 export function isRemovedRuntimeHostId(
   hostId: string | null | undefined,
   removedEnvironmentIds: ReadonlySet<string>
 ): boolean {
   const parsed = parseExecutionHostId(hostId)
-  return parsed?.kind === 'runtime' && removedEnvironmentIds.has(parsed.environmentId)
+  return (
+    parsed?.kind === 'runtime' &&
+    (removedEnvironmentIds.has(parsed.environmentId) ||
+      removedEnvironmentIds.has(runtimeEnvironmentPairingOwnerId(parsed.environmentId)))
+  )
 }
 
 /** Drop removed-runtime catalog headings, preserving unchanged references. */

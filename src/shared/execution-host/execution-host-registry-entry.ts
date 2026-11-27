@@ -9,6 +9,7 @@ import type { SshConnectionStatus } from '../remote-runtime/ssh/ssh-types'
 import type { RuntimeEnvironmentSource } from '../remote-runtime/host-catalog/runtime-environments'
 import type { ManagedOrcadDeploymentSummary } from './managed-orcad-execution-host'
 import type { ExecutionHostHealth, ExecutionHostVmState } from './execution-host-health'
+import type { RelayedWslHostReach } from './relayed-wsl-execution-host'
 
 export type ExecutionHostRegistryEntry = {
   id: ExecutionHostId
@@ -33,6 +34,8 @@ export type ExecutionHostRegistryEntry = {
   /** See managed-orcad-execution-host: pairs an SSH host with its managed server. */
   aliasHostIds?: readonly ExecutionHostId[]
   mergedIntoHostId?: ExecutionHostId
+  /** A paired server's WSL host reached through that server's relay; merged into its machine's row. */
+  relayedWsl?: { distro: string; reach: RelayedWslHostReach }
 }
 
 export type RuntimeEnvironmentSummary = {

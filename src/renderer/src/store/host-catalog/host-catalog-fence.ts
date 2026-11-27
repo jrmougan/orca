@@ -1,6 +1,7 @@
 import type { AppState } from '../types'
 import type { RuntimeClientTarget } from '../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { isRemovedRuntimeHostId } from './removed-runtime-host-rows'
+import { isRelayedRuntimeEnvironmentId } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { getEnvironmentSshStateGeneration } from '../slices/ssh/runtime-environment-ssh'
 import { getRuntimeTargetHostId } from '../../runtime/rpc/targets/runtime-client-target'
 import type { HostIdentityFence } from '../../runtime/rpc/environment-revisions/host-identity-fence'
@@ -20,7 +21,10 @@ export type HostCatalogIdentity = {
 /** Identity fence plus data generations: guards reads that apply a host's catalog snapshot. */
 export type HostCatalogFence = HostCatalogIdentity & { key: string; generation: number }
 
-type CatalogFenceStore = () => Pick<AppState, 'removedRuntimeEnvironmentIds'>
+type CatalogFenceState = Pick<AppState, 'removedRuntimeEnvironmentIds'> &
+  Partial<Pick<AppState, 'relayedWslHosts'>>
+
+type CatalogFenceStore = () => CatalogFenceState
 
 const latestHostCatalogGenerationByStore = new WeakMap<CatalogFenceStore, Map<string, number>>()
 
@@ -58,11 +62,19 @@ export function isHostCatalogFenceCurrent(
 }
 
 export function isHostCatalogIdentityCurrent(
-  state: Pick<AppState, 'removedRuntimeEnvironmentIds'>,
+  state: CatalogFenceState,
   fence: HostCatalogIdentity
 ): boolean {
   if (fence.target.kind !== 'environment') {
     return true
+  }
+  const { environmentId } = fence.target
+  // A relayed host exists only while its owner lists it: unpairing or losing the relay retires it.
+  if (
+    isRelayedRuntimeEnvironmentId(environmentId) &&
+    !state.relayedWslHosts?.some((host) => host.environmentId === environmentId)
+  ) {
+    return false
   }
   return (
     !isRemovedRuntimeHostId(
@@ -100,12 +112,20 @@ export async function loadRuntimeHostCatalogs(
     return
   }
   const environments = listed ?? []
+  const listedIds = new Set(environments.map((environment) => environment.id))
+  // WSL hosts of paired servers are catalog hosts too; one that is not running is never dialed.
+  const relayed = (get().relayedWslHosts ?? []).filter((host) =>
+    listedIds.has(host.ownerEnvironmentId)
+  )
   if (listed) {
-    onListed?.(listed.map((environment) => environment.id))
+    onListed?.([...listedIds, ...relayed.map((host) => host.environmentId)])
   }
   await Promise.all(
-    environments.map((environment) => {
-      const target = { kind: 'environment' as const, environmentId: environment.id }
+    [
+      ...listedIds,
+      ...relayed.flatMap((host) => (host.reach === 'ready' ? [host.environmentId] : []))
+    ].map((environmentId) => {
+      const target = { kind: 'environment' as const, environmentId }
       return load(target, claimHostCatalogFence(get, kind, target))
     })
   )
