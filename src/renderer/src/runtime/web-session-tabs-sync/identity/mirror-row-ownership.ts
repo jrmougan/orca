@@ -1,5 +1,6 @@
 // Shared workspaces mirror multiple runtimes; each frame can retire only its own rows (#31983).
 
+import { runtimeEnvironmentPairingOwnerId } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import type { AppState } from '@/store/types'
 import type { TerminalTab } from '../../../../../shared/workspace-layout/terminal-tab-types'
 import type { Tab } from '../../../../../shared/workspace-layout/tab-groups/tab-types'
@@ -21,13 +22,15 @@ export type MirrorRowOwnershipState = WebSessionTabsSyncState &
 
 /** A runtime that can still publish: not removed, and listed once the catalog has settled. */
 function isLiveEnvironment(state: MirrorRowOwnershipState, environmentId: string): boolean {
-  if (state.removedRuntimeEnvironmentIds?.has(environmentId)) {
+  // A relayed server lives and dies with the paired server that relays to it.
+  const pairedId = runtimeEnvironmentPairingOwnerId(environmentId)
+  if (state.removedRuntimeEnvironmentIds?.has(pairedId)) {
     return false
   }
   if (state.runtimeEnvironmentCatalogSettled !== true || !state.runtimeEnvironments) {
     return true
   }
-  return state.runtimeEnvironments.some((environment) => environment.id === environmentId)
+  return state.runtimeEnvironments.some((environment) => environment.id === pairedId)
 }
 
 // Pane bindings determine ownership; before the first handle, use the last publishing frames.

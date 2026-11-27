@@ -1,3 +1,4 @@
+import { findPairingRuntimeEnvironment } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import {
   lastVerifiedRuntimeStatus,
@@ -71,9 +72,8 @@ export function useWebSessionTabsSync(): void {
   )
   const activeWorktreeRuntimePairingRevision = useAppStore((state) => {
     const environmentId = mirroredRuntimeEnvironmentIdForWorkspace(state, state.activeWorktreeId)
-    const environment = state.runtimeEnvironments.find(
-      (candidate) => candidate.id === environmentId
-    )
+    // A relayed server is fenced by the pairing of the server that relays to it.
+    const environment = findPairingRuntimeEnvironment(state.runtimeEnvironments, environmentId)
     return environment ? (environment.pairingRevision ?? environment.createdAt) : undefined
   })
 

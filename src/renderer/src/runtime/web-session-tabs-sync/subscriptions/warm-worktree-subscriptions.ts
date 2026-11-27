@@ -1,3 +1,4 @@
+import { findPairingRuntimeEnvironment } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import {
   getWindowParkVisible,
   subscribeWindowParkVisibility
@@ -41,7 +42,7 @@ function currentStreamIdentity(
   environmentId: string
 ): string {
   const status = statuses.get(environmentId)
-  const environment = state.runtimeEnvironments.find(({ id }) => id === environmentId)
+  const environment = findPairingRuntimeEnvironment(state.runtimeEnvironments, environmentId)
   return streamIdentity(
     status?.connectionGeneration ?? 0,
     lastVerifiedRuntimeStatus(status)?.runtimeId ?? null,

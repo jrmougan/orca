@@ -20982,7 +20982,6 @@
         "wslDistroHint": "A Linux distro on this PC"
       },
       "relayedWslHost": {
-        "notOpenableYet": "Workspaces in {{distro}} can’t be opened from this computer yet",
         "openOnHost": "Open this workspace on {{host}}"
       }
     },

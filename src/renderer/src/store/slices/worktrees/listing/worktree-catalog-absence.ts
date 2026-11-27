@@ -1,3 +1,4 @@
+import { findPairingRuntimeEnvironment } from '../../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import type { AppState } from '../../../types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host/execution-host'
 import { splitWorktreeId, worktreeIdsEqual } from '../../../../../../shared/worktree/id'
@@ -24,7 +25,7 @@ type CatalogAuthorityState = Pick<
 >
 
 function runtimePairingRevision(state: CatalogAuthorityState, environmentId?: string) {
-  const runtime = state.runtimeEnvironments.find((environment) => environment.id === environmentId)
+  const runtime = findPairingRuntimeEnvironment(state.runtimeEnvironments, environmentId)
   return runtime?.pairingRevision ?? runtime?.createdAt
 }
 

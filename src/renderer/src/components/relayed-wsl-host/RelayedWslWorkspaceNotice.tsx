@@ -19,7 +19,8 @@ function selectRelayedWslWorkspace(
   }
   const environmentId = selectWorkspaceRuntimeEnvironmentId(state, worktreeId)
   const relayed = state.relayedWslHosts.find((host) => host.environmentId === environmentId)
-  if (!relayed || !selectWorkspaceHasNoTabs(state, worktreeId)) {
+  // A ready distro opens like any server's workspace; only one that can't be reached needs saying.
+  if (!relayed || relayed.reach === 'ready' || !selectWorkspaceHasNoTabs(state, worktreeId)) {
     return null
   }
   const owner = state.runtimeEnvironments.find(
@@ -28,7 +29,7 @@ function selectRelayedWslWorkspace(
   return { distro: relayed.distro, reach: relayed.reach, host: owner?.name ?? relayed.label }
 }
 
-/** A listed workspace in a paired computer's WSL distro cannot be opened from here yet; say so instead of a blank surface. */
+/** A workspace in a paired computer's WSL distro that is stopped or unreachable: say so instead of a blank surface. */
 export function RelayedWslWorkspaceNotice({
   worktreeId
 }: {
@@ -49,14 +50,7 @@ export function RelayedWslWorkspaceNotice({
         data-relayed-wsl-workspace-notice=""
       >
         <LinuxPenguinIcon className="mb-1 size-7 text-muted-foreground" />
-        <span>
-          {getRelayedWslReachDetail({ distro, reach }, host, t) ??
-            t(
-              'auto.components.relayedWslHost.notOpenableYet',
-              'Workspaces in {{distro}} can’t be opened from this computer yet',
-              { distro }
-            )}
-        </span>
+        <span>{getRelayedWslReachDetail({ distro, reach }, host, t)}</span>
         <span>
           {t('auto.components.relayedWslHost.openOnHost', 'Open this workspace on {{host}}', {
             host

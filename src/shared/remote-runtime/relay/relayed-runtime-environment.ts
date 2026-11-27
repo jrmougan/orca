@@ -105,3 +105,15 @@ export function parseRelayedRuntimeEnvironmentId(
 export function runtimeEnvironmentPairingOwnerId(environmentId: string): string {
   return parseRelayedRuntimeEnvironmentId(environmentId)?.ownerEnvironmentId ?? environmentId
 }
+
+/** The saved environment whose pairing carries `environmentId`: its own, or the server that relays to it. */
+export function findPairingRuntimeEnvironment<T extends { id: string }>(
+  environments: readonly T[],
+  environmentId: string | null | undefined
+): T | undefined {
+  if (!environmentId) {
+    return undefined
+  }
+  const ownerId = runtimeEnvironmentPairingOwnerId(environmentId)
+  return environments.find((environment) => environment.id === ownerId)
+}
