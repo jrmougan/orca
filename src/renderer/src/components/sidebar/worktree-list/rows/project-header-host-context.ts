@@ -1,3 +1,4 @@
+import { getRelayedWslReachDetail } from './relayed-wsl-host-reach-detail'
 import {
   getRepoExecutionHostId,
   toRuntimeExecutionHostId,
@@ -45,8 +46,9 @@ export function getProjectHeaderHostContexts(args: {
     sshConnectionStates: args.sshConnectionStates
   })
   const hostsById = indexExecutionHostsById([...hostRegistry.values()])
+  // A machine's WSL distro shares its row, yet its same-named project is another project.
   const canonicalHostId = (hostId: ExecutionHostId): ExecutionHostId =>
-    hostsById.get(hostId)?.id ?? hostId
+    hostRegistry.get(hostId)?.relayedWsl ? hostId : (hostsById.get(hostId)?.id ?? hostId)
   const projectIndex = buildProjectGroupingIndex(args.projectGrouping)
   const repoHostId = (repo: Repo): ExecutionHostId =>
     canonicalHostId(
@@ -61,6 +63,7 @@ export function getProjectHeaderHostContexts(args: {
     hostsByProjectKey.set(key, projectHosts)
   }
   const candidates = new Map<string, ProjectHeaderHostContext>()
+  const unreachable = new Set<string>()
   const sectionLabels = new Map<string, string>()
   const hostsByLabel = new Map<string, Set<ExecutionHostId>>()
   for (const row of args.rows) {
@@ -119,14 +122,25 @@ export function getProjectHeaderHostContexts(args: {
     const hostId = canonicalHostId(ownerHostId)
     labelHosts.add(hostId)
     const host = hostsById.get(hostId)
+    const wsl = hostRegistry.get(hostId)?.relayedWsl
+    const hostLabel = host?.label ?? getHostContextLabel(hostId)
+    if (wsl && wsl.reach !== 'ready') {
+      unreachable.add(row.key)
+    }
     candidates.set(row.key, {
       hostId,
-      label: host?.label ?? getHostContextLabel(hostId),
-      detail: host?.detail ?? getHostContextLabel(hostId)
+      label: wsl ? `${hostLabel} · ${wsl.distro}` : hostLabel,
+      detail:
+        (wsl && getRelayedWslReachDetail(wsl, hostLabel)) ??
+        hostRegistry.get(hostId)?.detail ??
+        host?.detail ??
+        getHostContextLabel(hostId)
     })
   }
-  // Only colliding names across machines need a host label.
+  // Only colliding names across hosts need a host label; a distro that can't be reached always says so.
   return new Map(
-    [...candidates].filter(([key]) => (hostsByLabel.get(sectionLabels.get(key)!)?.size ?? 0) > 1)
+    [...candidates].filter(
+      ([key]) => unreachable.has(key) || (hostsByLabel.get(sectionLabels.get(key)!)?.size ?? 0) > 1
+    )
   )
 }

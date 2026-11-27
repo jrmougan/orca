@@ -29,6 +29,7 @@ export function useSidebarHostScopeOptions(): {
   const wslHostStatuses = useAppStore((s) => s.wslHostStatuses)
   const wslHostServerFilesMissing = useAppStore((s) => s.wslHostServerFiles === 'missing')
   const ephemeralVmHosts = useAppStore(selectEphemeralVmHostLifecycles)
+  const relayedWslHosts = useAppStore((s) => s.relayedWslHosts)
 
   const hostLabelOverrides = useMemo(() => getHostDisplayLabelOverrides(settings), [settings])
   const hostOptions = useMemo(() => {
@@ -44,7 +45,8 @@ export function useSidebarHostScopeOptions(): {
       wslHostStatuses,
       wslHostsEnabled: selectWslHostsServing({ settings, runtimeEnvironments }),
       wslHostServerFilesMissing,
-      ephemeralVmHosts
+      ephemeralVmHosts,
+      relayedWslHosts
     })
   }, [
     repos,
@@ -57,6 +59,7 @@ export function useSidebarHostScopeOptions(): {
     wslHostStatuses,
     wslHostServerFilesMissing,
     ephemeralVmHosts,
+    relayedWslHosts,
     language
   ])
   const hostScopeOptions = useMemo(() => buildSidebarHostScopeOptions(hostOptions), [hostOptions])

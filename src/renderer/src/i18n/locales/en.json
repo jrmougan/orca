@@ -8075,6 +8075,9 @@
           "7a8b9c0d1e": "Update required",
           "hostAuthNeeded": "Authentication needed",
           "hostDisconnected": "Disconnected",
+          "relayedWslStopped": "{{distro}} is stopped on {{host}}",
+          "relayedWslUpdateNeeded": "{{distro}} needs an Orca update on {{host}}",
+          "relayedWslUnavailable": "{{distro}} is not running on {{host}}",
           "d880ea0744": "Create a group and move this project into it.",
           "bc1460beb3": "Update the group name shown in the sidebar.",
           "13757c053c": "New Project Group",
@@ -20977,6 +20980,10 @@
         "noWslDistros": "No WSL distros found",
         "wslDistro": "WSL distro",
         "wslDistroHint": "A Linux distro on this PC"
+      },
+      "relayedWslHost": {
+        "notOpenableYet": "Workspaces in {{distro}} can’t be opened from this computer yet",
+        "openOnHost": "Open this workspace on {{host}}"
       }
     },
     "i18n": {

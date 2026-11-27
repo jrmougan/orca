@@ -4,7 +4,7 @@ import type { AppState } from '@/store/types'
 import { selectStoppedWslHostEnvironmentId, useStoppedWslHost } from './use-stopped-wsl-host'
 import { WslHostStoppedNotice } from './WslHostStoppedNotice'
 
-function selectWorkspaceHasNoTabs(state: AppState, worktreeId: string): boolean {
+export function selectWorkspaceHasNoTabs(state: AppState, worktreeId: string): boolean {
   return (
     (state.unifiedTabsByWorktree[worktreeId]?.length ?? 0) === 0 &&
     (state.tabsByWorktree[worktreeId]?.length ?? 0) === 0 &&

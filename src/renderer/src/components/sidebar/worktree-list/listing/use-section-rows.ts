@@ -65,7 +65,8 @@ function createSidebarHostOptionsSelector() {
       state.wslHostStatuses,
       selectWslHostsServing(state),
       state.wslHostServerFiles === 'missing',
-      selectEphemeralVmHostLifecycles(state)
+      selectEphemeralVmHostLifecycles(state),
+      state.relayedWslHosts
     ]
     if (shallow(inputs, nextInputs)) {
       return result
@@ -82,7 +83,8 @@ function createSidebarHostOptionsSelector() {
       wslHostStatuses: state.wslHostStatuses,
       wslHostsEnabled: selectWslHostsServing(state),
       wslHostServerFilesMissing: state.wslHostServerFiles === 'missing',
-      ephemeralVmHosts: selectEphemeralVmHostLifecycles(state)
+      ephemeralVmHosts: selectEphemeralVmHostLifecycles(state),
+      relayedWslHosts: state.relayedWslHosts
     })
     if (!persistedUIValuesEqual(result.map(sidebarHostSemantics), next.map(sidebarHostSemantics))) {
       result = next

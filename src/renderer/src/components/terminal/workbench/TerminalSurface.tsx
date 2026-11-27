@@ -5,6 +5,7 @@ import { TerminalSplitWorkspaceSurfaces } from './TerminalSplitWorkspaceSurfaces
 import { TerminalLegacyWorkspaceSurface } from './TerminalLegacyWorkspaceSurface'
 import { TerminalWorkspaceDialogs } from './TerminalWorkspaceDialogs'
 import { WslHostStoppedWorkspaceNotice } from '../../wsl-host-stopped/WslHostStoppedWorkspaceNotice'
+import { RelayedWslWorkspaceNotice } from '../../relayed-wsl-host/RelayedWslWorkspaceNotice'
 import type { TerminalController } from './use-terminal-controller'
 
 export function TerminalSurface({
@@ -31,6 +32,7 @@ export function TerminalSurface({
       <TerminalSplitWorkspaceSurfaces controller={controller} />
       <TerminalLegacyWorkspaceSurface controller={controller} />
       <WslHostStoppedWorkspaceNotice worktreeId={renderedActiveWorktreeId} />
+      <RelayedWslWorkspaceNotice worktreeId={renderedActiveWorktreeId} />
       <TerminalWorkspaceDialogs controller={controller} />
     </div>
   )

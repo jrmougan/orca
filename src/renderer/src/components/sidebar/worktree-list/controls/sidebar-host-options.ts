@@ -1,3 +1,5 @@
+import type { RelayedWslHostSummary } from '../../../../../../shared/execution-host/relayed-wsl-execution-host'
+import { getRelayedWslReachDetail } from '../rows/relayed-wsl-host-reach-detail'
 import { shallow } from 'zustand/shallow'
 import type { GlobalSettings } from '../../../../../../shared/settings/global-settings-types'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
@@ -97,6 +99,7 @@ export function buildSidebarHostOptions(
     /** True keeps WSL hosts' rows but marks them unable to run in this build. */
     wslHostServerFilesMissing?: boolean
     ephemeralVmHosts?: readonly EphemeralVmHostLifecycle[]
+    relayedWslHosts?: readonly RelayedWslHostSummary[]
   },
   t?: Translate
 ): SidebarHostOption[] {
@@ -122,7 +125,7 @@ export function buildSidebarHostOptions(
   const activeRuntimeHostId = args.settings?.activeRuntimeEnvironmentId?.trim()
     ? toRuntimeExecutionHostId(args.settings.activeRuntimeEnvironmentId.trim())
     : null
-  return buildExecutionHostRegistry({
+  const registry = buildExecutionHostRegistry({
     repos: args.repos,
     settings: args.settings,
     sshTargetLabels: args.sshTargetLabels,
@@ -130,8 +133,22 @@ export function buildSidebarHostOptions(
     runtimeEnvironments: args.runtimeEnvironments,
     runtimeStatusByEnvironmentId: args.runtimeStatusByEnvironmentId,
     hostLabelOverrides: args.hostLabelOverrides,
-    ephemeralVmHosts: args.ephemeralVmHosts
-  }).map((host) => {
+    ephemeralVmHosts: args.ephemeralVmHosts,
+    relayedWslHosts: args.relayedWslHosts
+  })
+  // A machine's row speaks for its WSL distros, so a distro that can't be reached shows there.
+  const unreachableWslDetailByHostId = new Map<ExecutionHostId, string>()
+  for (const host of registry) {
+    const shown = host.mergedIntoHostId && registry.find((row) => row.id === host.mergedIntoHostId)
+    const detail =
+      host.relayedWsl && shown && getRelayedWslReachDetail(host.relayedWsl, shown.label, t)
+    if (detail) {
+      unreachableWslDetailByHostId.set(host.id, detail)
+      const merged = unreachableWslDetailByHostId.get(shown.id)
+      unreachableWslDetailByHostId.set(shown.id, merged ? `${merged} · ${detail}` : detail)
+    }
+  }
+  return registry.map((host) => {
     if (host.kind === 'local') {
       return {
         ...host,
@@ -157,8 +174,10 @@ export function buildSidebarHostOptions(
     }
     const wsl = wslDistroByHostId.get(host.id)
     const status = wsl ? args.wslHostStatuses?.[wsl.environmentId] : undefined
+    const unreachableWslDetail = unreachableWslDetailByHostId.get(host.id)
     return {
       ...host,
+      ...(unreachableWslDetail ? { detail: unreachableWslDetail } : {}),
       ...(wsl && args.wslHostServerFilesMissing === true
         ? {
             wslDistro: wsl.distro,
