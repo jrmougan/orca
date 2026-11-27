@@ -1,4 +1,5 @@
 import { toRuntimeExecutionHostId } from '../../../../../shared/execution-host/execution-host'
+import { runtimeEnvironmentPairingOwnerId } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { createRuntimeEnvironmentStatusRetention } from './runtime-environment-status-retention'
 import type {
   RuntimeStatusSlice,
@@ -77,9 +78,12 @@ export const createRuntimeStatusSlice: (
       .filter((id) => !nextIds.has(id))
     set((s) => {
       const keep = new Set(environments.map((environment) => environment.id))
+      const replaced = new Set(replacedEnvironmentIds)
       const removedStatusIds = new Set<string>()
       for (const id of s.runtimeStatusByEnvironmentId.keys()) {
-        if (!keep.has(id)) {
+        // A relayed server's status stands while the server that relays to it is still the same one.
+        const pairedId = runtimeEnvironmentPairingOwnerId(id)
+        if (!keep.has(pairedId) || (pairedId !== id && replaced.has(pairedId))) {
           removedStatusIds.add(id)
           runtimeStatusConnectionGeneration.advanceRuntimeEnvironmentConnectionGeneration(id)
         }

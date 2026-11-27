@@ -13,7 +13,11 @@ type PollingStore = Pick<typeof useAppStore, 'getState' | 'subscribe'>
 
 function relayingOwnersKey(state: AppState): string {
   return relayingRuntimeOwners(state)
-    .map((owner) => `${owner.environmentId}\0${owner.inContact}`)
+    .map((owner) => {
+      // A new connection or regained contact at the owner is one for the hosts behind it.
+      const entry = state.runtimeStatusByEnvironmentId.get(owner.environmentId)
+      return `${owner.environmentId}\0${owner.inContact}\0${entry?.connectionGeneration ?? 0}\0${entry?.hostContactEpoch ?? 0}`
+    })
     .join('\n')
 }
 

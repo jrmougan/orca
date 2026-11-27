@@ -3,6 +3,14 @@ import type { AppState } from '../../types'
 import { MOBILE_RELAY_HOSTS_LIST_METHOD } from '../../../../../shared/remote-runtime/relay/mobile-relay-hosts-contract'
 import { persistedUIValuesEqual } from '../../../../../shared/collections/persisted-ui-equality'
 import { callRuntimeRpc } from '../../../runtime/rpc/calls/runtime-rpc-call'
+import { getRuntimeEnvironmentRevision } from '../../../runtime/rpc/environment-revisions/runtime-environment-revision'
+import type { RuntimeStatus } from '../../../../../shared/remote-runtime/session-graph/runtime-session-contracts'
+import { stageHostStatuses } from '../runtime-status/host-status-transaction-draft'
+import {
+  forgetRelayedHostStatuses,
+  relayedHostStatusReplacements,
+  type RelayedHostStatusReading
+} from './relayed-host-status'
 import {
   parseRelayedWslHosts,
   relayingRuntimeOwners,
@@ -24,6 +32,32 @@ export type RelayedWslHostsSlice = {
 }
 
 const refreshesInFlight = new WeakMap<object, Promise<void>>()
+
+/** A ready host's own status through its owner's relay; undefined when the read got no answer. */
+async function readRelayedHostStatus(host: RelayedWslHost): Promise<RelayedHostStatusReading> {
+  const { environmentId } = host
+  if (host.reach !== 'ready') {
+    return { environmentId, status: null }
+  }
+  const revision = getRuntimeEnvironmentRevision(environmentId)
+  try {
+    const response = await window.api.runtimeEnvironments.call({
+      selector: environmentId,
+      method: 'status.get',
+      timeoutMs: 10_000,
+      expectedEnvironmentPairingRevision: revision,
+      background: true
+    })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: status.get answers a RuntimeStatus; only its runtime id and capabilities are read downstream.
+    const status = response.ok ? (response.result as RuntimeStatus) : undefined
+    return {
+      environmentId,
+      status: getRuntimeEnvironmentRevision(environmentId) === revision ? status : undefined
+    }
+  } catch {
+    return { environmentId, status: undefined }
+  }
+}
 
 async function readRelayedWslHosts(ownerEnvironmentId: string): Promise<RelayedWslHost[] | null> {
   try {
@@ -72,9 +106,16 @@ export const createRelayedWslHostsSlice: StateCreator<AppState, [], [], RelayedW
     const readyBefore = new Set(
       previous.flatMap((host) => (host.reach === 'ready' ? [host.environmentId] : []))
     )
-    set({ relayedWslHosts: next })
+    set((state) =>
+      stageHostStatuses(
+        state,
+        gone.map((environmentId) => [environmentId, null] as const),
+        { relayedWslHosts: next }
+      )
+    )
     // A host its owner no longer lists is gone like a removed server: its rows must not linger.
     if (gone.length > 0) {
+      forgetRelayedHostStatuses(gone)
       get().purgeStaleRuntimeHostState?.(gone)
     }
     if (next.some((host) => host.reach === 'ready' && !readyBefore.has(host.environmentId))) {
@@ -106,6 +147,9 @@ export const createRelayedWslHostsSlice: StateCreator<AppState, [], [], RelayedW
         listings,
         new Set(relayingRuntimeOwners(get()).map((owner) => owner.environmentId))
       )
+      // Each host's own status: what tells its live sessions and terminals apart from a stopped distro.
+      const readings = await Promise.all(get().relayedWslHosts.map(readRelayedHostStatus))
+      set((state) => stageHostStatuses(state, relayedHostStatusReplacements(state, readings), {}))
     })().finally(() => refreshesInFlight.delete(get))
     refreshesInFlight.set(get, refresh)
     return refresh

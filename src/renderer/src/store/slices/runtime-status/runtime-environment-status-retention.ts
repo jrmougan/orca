@@ -6,6 +6,7 @@ import type {
 import { stageHostStatuses } from './host-status-transaction-draft'
 import { dismissRuntimeDisconnectedToast } from './runtime-environment-disconnect-toast'
 import * as runtimeStatusConnectionGeneration from './runtime-status-connection-generation'
+import { runtimeEnvironmentPairingOwnerId } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 
 export function createRuntimeEnvironmentStatusRetention(
   set: RuntimeStatusStoreSetState,
@@ -26,7 +27,9 @@ export function createRuntimeEnvironmentStatusRetention(
     },
 
     retainRuntimeEnvironmentStatuses: (environmentIds) => {
-      const keep = new Set(environmentIds)
+      const kept = new Set(environmentIds)
+      // A relayed server's status is retained with the server that relays to it.
+      const keep = { has: (id: string) => kept.has(runtimeEnvironmentPairingOwnerId(id)) }
       for (const id of get().runtimeStatusByEnvironmentId.keys()) {
         if (!keep.has(id)) {
           dismissRuntimeDisconnectedToast(id)

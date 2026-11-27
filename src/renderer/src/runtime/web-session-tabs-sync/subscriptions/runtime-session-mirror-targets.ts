@@ -1,3 +1,4 @@
+import { findPairingRuntimeEnvironment } from '../../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { lastVerifiedRuntimeStatus } from '../../../../../shared/remote-runtime/host-status/runtime-host-status'
 import type { RuntimeHostStatusSnapshot } from '../../../../../shared/remote-runtime/host-status/runtime-host-status'
 import {
@@ -41,9 +42,7 @@ export type RuntimeSessionMirrorTargetState = Omit<
 export function getReachableRuntimeSessionMirrorTargets(
   state: RuntimeSessionMirrorTargetState
 ): RuntimeSessionMirrorTarget[] {
-  const environmentById = new Map(
-    (state.runtimeEnvironments ?? []).map((environment) => [environment.id, environment])
-  )
+  const environments = state.runtimeEnvironments ?? []
   const targets: RuntimeSessionMirrorTarget[] = []
   for (const environmentId of getRuntimeSessionMirrorEnvironmentIds(state)) {
     const entry = state.runtimeStatusByEnvironmentId?.get(environmentId)
@@ -55,7 +54,8 @@ export function getReachableRuntimeSessionMirrorTargets(
     if (!runtimeId) {
       continue
     }
-    const environment = environmentById.get(environmentId)
+    // A relayed server mirrors under the pairing of the server that relays to it.
+    const environment = findPairingRuntimeEnvironment(environments, environmentId)
     if (!environment) {
       continue
     }
