@@ -103,7 +103,7 @@ describe('a paired desktop client naming a host behind its server', () => {
         _meta: { runtimeId: host.runtime.getRuntimeId() }
       })
     }
-  }, 30_000)
+  })
 
   it('drives terminal.multiplex with its own stream ids, both ways', async () => {
     const { host, client } = await startRelayedHost()
@@ -154,5 +154,5 @@ describe('a paired desktop client naming a host behind its server', () => {
     expect(replies).toContainEqual(
       expect.objectContaining({ ok: true, result: { type: 'end', streamId: 5 } })
     )
-  }, 30_000)
+  })
 })
