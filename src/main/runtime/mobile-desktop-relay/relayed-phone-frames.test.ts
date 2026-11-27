@@ -110,6 +110,30 @@ describe('RelayedPhoneReplies', () => {
     expect(new TextDecoder().decode(frame!.payload)).toBe('hi')
   })
 
+  it('passes client-assigned stream ids through unrenumbered while a multiplex is open', () => {
+    const relay = replies()
+    relay.noteForwarded('mux', { carrier: 'client-stream-ids' })
+    const ready = JSON.stringify({
+      id: 'mux',
+      ok: true,
+      streaming: true,
+      result: { type: 'ready' },
+      _meta: { runtimeId: 'host' }
+    })
+    expect(relay.text(ready)).toBe(ready)
+    // A result that happens to carry a streamId is the client's own id, not a host id to renumber.
+    const subscribedFrame = subscribed('mux', 3)
+    expect(relay.text(subscribedFrame)).toBe(subscribedFrame)
+    // The client never announced stream 9 to the relay: it allocated it itself.
+    expect(decodeTerminalStreamFrame(relay.binary(output(9))!)).toMatchObject({ streamId: 9 })
+    expect(relay.carriesClientStreams()).toBe(true)
+
+    // Once the multiplex itself answers, the lane is free and unannounced frames drop again.
+    relay.text(JSON.stringify({ id: 'mux', ok: true, result: {}, _meta: { runtimeId: 'host' } }))
+    expect(relay.carriesClientStreams()).toBe(false)
+    expect(relay.binary(output(9))).toBeNull()
+  })
+
   it('drops terminal frames for streams the phone was never told of and passes other binary untouched', () => {
     const relay = replies()
     expect(relay.binary(output(9))).toBeNull()

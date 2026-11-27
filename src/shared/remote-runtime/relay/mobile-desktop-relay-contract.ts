@@ -24,6 +24,12 @@ export const RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY = 'runtime.client-relay.v1'
 export const RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY =
   'runtime.client-relay.terminal-multiplex.v1' as const
 
+/** Stamped per connection wherever the server relays runtime clients. */
+export const RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES = [
+  RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
+  RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY
+] as const
+
 /** A desktop relays a phone to a server that mints delegated phone devices; each side advertises. */
 export const MOBILE_RELAY_RUNTIME_CAPABILITIES = [
   DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,

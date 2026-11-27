@@ -1,5 +1,8 @@
 import type { WebSocket } from 'ws'
 import type { TerminalStreamFrame } from '../../../../shared/terminal/stream/terminal-stream-protocol'
+import { RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import type { RelayedStreamCaller } from '../../mobile-desktop-relay/relayed-client-stream-admission'
+import type { AuthenticatedMobileSocket } from '../mobile/mobile-socket-wiring'
 import { DeviceRegistry } from './pairing/device-registry'
 import { loadOrCreateE2EEKeypair, type E2EEKeypair } from './pairing/e2ee-keypair'
 import { ensureHostInstanceIdentity, type HostIdentityOutcome } from '../../host-instance-identity'
@@ -17,6 +20,7 @@ export class RuntimeRpcBinaryRouting extends RuntimeRpcState {
     streamId: number,
     handler: (frame: TerminalStreamFrame) => void
   ): () => void {
+    this.assertNoRelayedClientStreams(connectionId)
     return this.binaryMessageRouter.registerTerminalStream(connectionId, streamId, handler)
   }
 
@@ -24,6 +28,7 @@ export class RuntimeRpcBinaryRouting extends RuntimeRpcState {
     connectionId: string | undefined,
     handler: (bytes: Uint8Array<ArrayBufferLike>) => void
   ): () => void {
+    this.assertNoRelayedClientStreams(connectionId)
     return this.binaryMessageRouter.registerRawMessage(connectionId, handler)
   }
 
@@ -33,7 +38,30 @@ export class RuntimeRpcBinaryRouting extends RuntimeRpcState {
       return
     }
     this.lastClientRequestAt = Date.now()
-    this.binaryMessageRouter.dispatch(this.mobileSocketWiring?.getConnectionId(ws), bytes)
+    const connectionId = this.mobileSocketWiring?.getConnectionId(ws)
+    // A relayed multiplex owns its connection's binary lane; every other connection stays local.
+    if (connectionId && this.mobileDesktopRelay?.forwardClientBinary(connectionId, bytes)) {
+      return
+    }
+    this.binaryMessageRouter.dispatch(connectionId, bytes)
+  }
+
+  /** What a runtime client's socket lets the relay carry beyond text requests. */
+  protected relayedStreamCaller(socket: AuthenticatedMobileSocket): RelayedStreamCaller {
+    return {
+      // Both sides negotiate relayed binary frames; a client that only knows the relay keeps its refusal.
+      carriesClientStreams: socket.clientCapabilities.includes(
+        RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY
+      ),
+      hasLocalBinaryStreams: () => this.binaryMessageRouter.hasHandlers(socket.connectionId)
+    }
+  }
+
+  // Frames on a relayed lane never reach local handlers, so a local stream there would hang silently.
+  private assertNoRelayedClientStreams(connectionId: string | undefined): void {
+    if (connectionId && this.mobileDesktopRelay?.carriesClientStreams(connectionId)) {
+      throw new Error('binary_handler_mode_conflict')
+    }
   }
 
   protected registerWebSocketDispatchAbort(ws: WebSocket): {

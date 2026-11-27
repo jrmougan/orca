@@ -10,6 +10,7 @@ import {
   recipeVmWakeIntentFor
 } from '../../../shared/remote-runtime/recipe-vm-wake'
 import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
+import type { RelayedStreamCaller } from './relayed-client-stream-admission'
 import { RelayedPhoneReplies } from './relayed-phone-frames'
 
 export type OpenedRelayLink = {
@@ -19,7 +20,7 @@ export type OpenedRelayLink = {
 }
 
 /** A phone, or a paired desktop/web client relayed under runtime.client-relay.v1; the server sees both as phones. */
-export type RelayedPhone = {
+export type RelayedPhone = RelayedStreamCaller & {
   connectionId: string
   deviceId: string
   deviceToken: string
@@ -27,6 +28,7 @@ export type RelayedPhone = {
   /** Runs once the target names a configured server, before its sync asks for this caller's grant. */
   onServerResolved?: (environmentId: string) => void
   reply: (frame: string) => void
+  /** False only when the frame was neither sent nor queued. */
   sendBinary: (bytes: Uint8Array<ArrayBufferLike>) => boolean | void
 }
 
@@ -34,6 +36,8 @@ export class RelayLink {
   readonly abortController = new AbortController()
   readonly replies: RelayedPhoneReplies
   readonly opened: Promise<OpenedRelayLink>
+  /** The settled link; client binary is forwarded on it without waiting. */
+  ready: OpenedRelayLink | null = null
 
   constructor(
     readonly environmentId: string,
@@ -43,6 +47,10 @@ export class RelayLink {
   ) {
     this.replies = new RelayedPhoneReplies(allocateStreamId)
     this.opened = open(this)
+    this.opened.then(
+      (opened) => (this.ready = opened),
+      () => {}
+    )
   }
 
   /** Whether this link's preparation has returned, fixing the pairing it opens on: a re-pair after

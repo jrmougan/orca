@@ -30,8 +30,13 @@ export async function openRelayedPhoneSocket(
         },
         onBinary: (bytes) => {
           const frame = link.replies.binary(bytes)
-          if (frame) {
-            link.phone.sendBinary(frame)
+          // A multiplex frame lost on the way to its client desyncs that stream; only a reconnect resyncs it.
+          if (
+            frame &&
+            link.phone.sendBinary(frame) === false &&
+            link.replies.carriesClientStreams()
+          ) {
+            endLink(unavailable('The client connection could not take terminal output.'))
           }
         },
         onClose: (error) => endLink(error)

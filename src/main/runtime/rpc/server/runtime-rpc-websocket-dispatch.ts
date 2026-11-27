@@ -18,7 +18,9 @@ import { parseExecutionHostId } from '../../../../shared/execution-host/executio
 import { WorktreeRemove } from '../../../../shared/rpc-contract/workspaces/worktree-params'
 import { createPairingDirectEndpointsReader } from './pairing/network/pairing-direct-endpoints'
 import { socketPairingRpcContext } from './runtime-rpc-socket-pairing-context'
-import { RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import { RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import type { RelayedPhone } from '../../mobile-desktop-relay/mobile-desktop-relay-link'
+import type { RelayedStreamCaller } from '../../mobile-desktop-relay/relayed-client-stream-admission'
 import { runtimeClientRelayAdmission } from './runtime-client-relay-admission'
 
 export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
@@ -34,7 +36,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
     reply: (response: string) => void,
     sendBinary: RpcBinarySender,
     socket: AuthenticatedMobileSocket | undefined,
-    onServerResolved?: (environmentId: string) => void
+    runtimeClient?: Pick<RelayedPhone, 'onServerResolved'> & RelayedStreamCaller
   ): RpcRequest | null {
     const { executionHost } = request
     if (executionHost === undefined) {
@@ -83,11 +85,9 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
           deviceId: socket.device.deviceId,
           deviceToken: socket.device.clientId,
           clientCapabilities: () => socket.clientCapabilities,
-          onServerResolved,
+          ...runtimeClient,
           reply,
-          sendBinary: (bytes) => {
-            sendBinary(bytes)
-          }
+          sendBinary: (bytes) => sendBinary(bytes) !== false
         },
         target.environmentId,
         request,
@@ -199,8 +199,12 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
           reply,
           sendBinary,
           authenticatedSocket,
-          // Mint this client a device only on a server it actually reached.
-          (environmentId) => this.relayedRuntimeClients.add(environmentId, device.deviceId)
+          {
+            // Mint this client a device only on a server it actually reached.
+            onServerResolved: (environmentId) =>
+              this.relayedRuntimeClients.add(environmentId, device.deviceId),
+            ...(authenticatedSocket ? this.relayedStreamCaller(authenticatedSocket) : {})
+          }
         )
         if (!localRequest) {
           return
@@ -238,7 +242,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
     // Sealed per connection: only an encrypted runtime socket on a relaying server may send executionHost.
     const connectionCapabilities =
       device.scope === 'runtime' && authenticatedSocket && this.mobileDesktopRelay
-        ? [RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY]
+        ? RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES
         : []
     const replyForRequest =
       request.method === 'status.get'
