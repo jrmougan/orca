@@ -1,6 +1,7 @@
 import { createRuntimeEnvironmentStatusOwnerRegistry } from '../status/runtime-environment-status-owner-registry'
 import { runtimeEnvironmentConnectionPairingKey as getPairingKey } from './runtime-environment-capability-evidence'
 import type { RuntimeEnvironmentCall } from '../requests/runtime-environment-call'
+import { sendOnAdmittedSharedControlSocket } from './runtime-environment-admitted-shared-send'
 import type { PairedRuntimeConnection } from '../../../../shared/remote-runtime/pairing/paired-runtime-connection'
 import type { RuntimeStatus } from '../../../../shared/remote-runtime/session-graph/runtime-session-contracts'
 import { ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES } from '../../../../shared/remote-runtime/protocol/electron-remote-runtime-client-capabilities'
@@ -130,55 +131,32 @@ export function sendRemoteRuntimeSharedControlRequest<TResult>(
 }
 
 /** Send only on the shared socket that proved expectedRuntimeId; return null if it changed or is unproven. */
-export async function sendRemoteRuntimeSharedControlRequestOnRuntime<TResult>(
+export function sendRemoteRuntimeSharedControlRequestOnRuntime<TResult>(
   environmentId: string,
   pairedConnection: PairedRuntimeConnection,
   call: RuntimeEnvironmentCall,
   expectedRuntimeId: string
 ): Promise<RuntimeRpcResponse<TResult> | null> {
-  const shared = getSharedControlConnection(environmentId, pairedConnection)
-  let statusSocket: number | undefined
-  const status = await shared.request<RuntimeStatus>(
-    'status.get',
-    undefined,
-    call.timeoutMs,
-    undefined,
-    call.signal,
-    {
-      beforeSend: () => void (statusSocket = shared.socketGeneration.peek()),
-      idlePassive: call.idlePassive
-    }
+  return sendRemoteRuntimeSharedControlRequestWhenAdmitted(
+    environmentId,
+    pairedConnection,
+    call,
+    (status) => status.runtimeId === expectedRuntimeId
   )
-  if (!status.ok || status.result.runtimeId !== expectedRuntimeId) {
-    return null
-  }
-  let socketChanged = false
-  const beforeSend = (): void => {
-    socketChanged = shared.socketGeneration.peek() !== statusSocket
-    if (socketChanged) {
-      throw new Error('Runtime connection changed before sending')
-    }
-  }
-  try {
-    return await shared.request<TResult>(
-      call.method,
-      call.params,
-      call.timeoutMs,
-      call.envelope,
-      call.signal,
-      {
-        beforeSend,
-        prepareRequest: call.prepareRequest,
-        prepareGuard: call.prepareGuard,
-        idlePassive: call.idlePassive
-      }
-    )
-  } catch (error) {
-    if (socketChanged) {
-      return null
-    }
-    throw error
-  }
+}
+
+/** Send only on this environment's shared socket once its own status.get passed `admits`; null otherwise. */
+export function sendRemoteRuntimeSharedControlRequestWhenAdmitted<TResult>(
+  environmentId: string,
+  pairedConnection: PairedRuntimeConnection,
+  call: RuntimeEnvironmentCall,
+  admits: (status: RuntimeStatus) => boolean
+): Promise<RuntimeRpcResponse<TResult> | null> {
+  return sendOnAdmittedSharedControlSocket<TResult>(
+    getSharedControlConnection(environmentId, pairedConnection),
+    call,
+    admits
+  )
 }
 
 export function subscribeRemoteRuntimeSharedControlRequest<TResult>(
@@ -256,7 +234,7 @@ export function retryRemoteRuntimeSharedControlConnectionsNow(): void {
   probeAllRemoteRuntimeSocketsNow()
 }
 
-function getSharedControlConnection(
+export function getSharedControlConnection(
   environmentId: string,
   pairedConnection: PairedRuntimeConnection
 ): RemoteRuntimeSharedControlConnection {

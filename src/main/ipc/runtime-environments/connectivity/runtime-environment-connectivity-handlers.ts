@@ -30,6 +30,8 @@ import {
   type ConnectivityHandlerOptions
 } from './runtime-environment-remove-handler'
 import { callRuntimeEnvironment } from '../requests/runtime-environment-transport-routing'
+import { callRelayedRuntimeHost } from '../requests/runtime-environment-relayed-host-call'
+import { isRelayedRuntimeEnvironmentId } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import { rendererOrchestrationEnvelope } from '../connections/runtime-environment-shared-control-envelope'
 import { getRuntimeEnvironmentStatus } from '../status/runtime-environment-status-probe'
 import { noteRuntimeEnvironmentConnectRequested } from '../pairing/runtime-environment-pairing-refusal-registry'
@@ -195,6 +197,10 @@ function registerPassiveCallHandler(
         wake?: boolean
       }
     ): Promise<RuntimeRpcResponse<unknown>> => {
+      // Before resolveEnvironment and the WSL/account steps: a relayed server is no saved environment.
+      if (isRelayedRuntimeEnvironmentId(args.selector)) {
+        return callRelayedRuntimeHost(getUserDataPath(), args)
+      }
       const environment = await resolveEnvironment(getUserDataPath(), args.selector)
       if (isRuntimeEnvironmentManuallyDisconnected(environment.id)) {
         return manuallyDisconnectedResponse(environment)

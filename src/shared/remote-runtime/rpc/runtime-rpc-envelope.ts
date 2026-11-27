@@ -93,6 +93,8 @@ export type RuntimeOrchestrationEnvelope = {
   orchestrationPeerRun?: RemoteOwnedPeerRun
   compatibilityInvocationId?: string
   orchestrationCompatibilityEvidence?: OrchestrationCompatibilityEvidence
+  /** A server the paired host relays this call to; sent only on a socket that advertised `runtime.client-relay.v1`. */
+  executionHost?: `runtime:${string}`
 }
 
 /** Which runtime a request is meant for; a host that is not that runtime refuses it before any handler. */
