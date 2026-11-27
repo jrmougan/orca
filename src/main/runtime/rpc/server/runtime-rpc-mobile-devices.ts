@@ -9,6 +9,7 @@ import type {
   DelegatedPhone,
   DelegatedMobileDeviceSyncResult
 } from '../../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
+import { isDelegatingDesktop } from './pairing/delegated-mobile-devices'
 import { RuntimeRpcRequestAdmission } from './runtime-rpc-request-admission'
 import { settleRemovedPairedClient } from '../../orchestration/federation/client-asks/client-ask-queue'
 
@@ -83,7 +84,6 @@ export class RuntimeRpcMobileDevices extends RuntimeRpcRequestAdmission {
     return true
   }
 
-  /** Make the runtime device `parentDeviceId`'s phones exactly `phones`; dropped ones are fully revoked. */
   /** Who typed a paired device's message; see `pairedDeviceTypistOf`. */
   pairedDeviceTypist(
     deviceId: string,
@@ -121,7 +121,7 @@ export class RuntimeRpcMobileDevices extends RuntimeRpcRequestAdmission {
     }
   }
 
-  /** The syncing socket's installation owns its phones: several desktops can share one row. */
+  /** The syncing socket's installation owns its children: several desktops can share one row. */
   protected syncDelegatedMobileDevices(
     parentDeviceId: string,
     phones: readonly DelegatedPhone[],
@@ -131,13 +131,14 @@ export class RuntimeRpcMobileDevices extends RuntimeRpcRequestAdmission {
       connectionId === undefined ? undefined : this.declaredDesktopClients.instanceOf(connectionId)
     const registry = this.deviceRegistry
     const parent = registry?.getDevice(parentDeviceId)
-    if (!registry || parent?.scope !== 'runtime') {
+    if (!registry || !parent || !isDelegatingDesktop(parent)) {
       throw new Error('delegated_device_parent_unavailable')
     }
-    const wanted = new Set(phones.map((phone) => phone.phoneKey))
+    const wanted = new Map(phones.map((phone) => [phone.phoneKey, phone.kind ?? 'mobile']))
+    // A child of the other kind is revoked and minted anew, never re-scoped under its token.
     const dropped = registry
       .listDelegatedMobileDevices(parentDeviceId)
-      .filter((child) => !child.phoneKey || !wanted.has(child.phoneKey))
+      .filter((child) => !child.phoneKey || wanted.get(child.phoneKey) !== child.scope)
     if (!this.revokeDevicesNow(dropped)) {
       throw new Error('delegated_device_revoke_failed')
     }
@@ -146,7 +147,7 @@ export class RuntimeRpcMobileDevices extends RuntimeRpcRequestAdmission {
     // A child removed on disk meanwhile is dropped by the save; one rerun mints it fresh.
     if (devices.length < phones.length) {
       const current = registry.getDevice(parentDeviceId)
-      if (current?.scope !== 'runtime') {
+      if (!current || !isDelegatingDesktop(current)) {
         throw new Error('delegated_device_parent_unavailable')
       }
       devices = registry.upsertDelegatedMobileDevices(current, phones, originClientInstanceId)

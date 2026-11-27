@@ -6,6 +6,9 @@ export const DELEGATED_MOBILE_DEVICE_SYNC_METHOD = 'pairing.delegatedMobileDevic
 // Why: a desktop relays phones only to a host advertising this (via MOBILE_RELAY_RUNTIME_CAPABILITIES).
 export const DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY =
   'pairing.delegated-mobile-devices.v1' as const
+// A server advertising this mints `kind: 'runtime'` children; one that does not is never sent them.
+export const DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY =
+  'pairing.delegated-runtime-devices.v1' as const
 export const DELEGATED_MOBILE_DEVICE_SYNC_MAX_PHONES = 32
 export const DELEGATED_PHONE_NAME_MAX_CHARS = 128
 
@@ -13,7 +16,9 @@ const DelegatedPhoneSchema = lazyZodSchema(() =>
   z
     .object({
       phoneKey: z.string().min(1).max(128),
-      name: z.string().min(1).max(DELEGATED_PHONE_NAME_MAX_CHARS)
+      name: z.string().min(1).max(DELEGATED_PHONE_NAME_MAX_CHARS),
+      // Absent means a phone: servers older than the runtime capability refuse the key (strict).
+      kind: z.enum(['mobile', 'runtime']).optional()
     })
     .strict()
 )
@@ -32,6 +37,7 @@ export const DelegatedMobileDeviceSyncParamsSchema = lazyZodSchema(() =>
 )
 
 export type DelegatedPhone = z.infer<typeof DelegatedPhoneSchema>
+export type DelegatedDeviceKind = NonNullable<DelegatedPhone['kind']>
 export type DelegatedMobileDeviceSyncParams = z.infer<typeof DelegatedMobileDeviceSyncParamsSchema>
 
 export type DelegatedMobileDeviceSyncResult = {

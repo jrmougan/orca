@@ -1,4 +1,7 @@
-import { DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY } from '../pairing/delegated-mobile-device-contract'
+import {
+  DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,
+  DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY
+} from '../pairing/delegated-mobile-device-contract'
 
 // Send executionHost only after capability negotiation: older desktops ignore it and would execute locally.
 export const MOBILE_DESKTOP_RELAY_RUNTIME_CAPABILITY = 'mobile.desktop-relay.v1' as const
@@ -19,9 +22,14 @@ export const MOBILE_RELAY_HOST_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY =
 // Stamped per connection, so it is not in RUNTIME_CAPABILITIES: only a server wired to its hosts relays.
 export const RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY = 'runtime.client-relay.v1' as const
 
+// A server without DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY refuses a paired desktop/web client with this.
+export const RUNTIME_CLIENT_RELAY_UPDATE_NEEDED_MESSAGE =
+  'The server needs an Orca update to open its workspaces from a paired computer.'
+
 /** A desktop relays a phone to a server that mints delegated phone devices; each side advertises. */
 export const MOBILE_RELAY_RUNTIME_CAPABILITIES = [
   DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,
+  DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY,
   MOBILE_DESKTOP_RELAY_RUNTIME_CAPABILITY,
   MOBILE_RELAY_HOST_WORKTREE_DELTAS_RUNTIME_CAPABILITY,
   MOBILE_RELAY_HOSTS_CHANGED_EVENT_RUNTIME_CAPABILITY,
