@@ -200,26 +200,9 @@ export class MobileRelayHostCatalog {
 
   private async describe(): Promise<MobileRelayHostsListResult> {
     return {
+      // Why drop rather than pick: a field added to the contract must reach clients without an edit here.
       hosts: (await describeRelayHosts(this.options.hosts, this.options.hostLabelOverrides())).map(
-        ({
-          hostId,
-          label,
-          health,
-          relay,
-          stoppedOnDesktop,
-          unavailableOnDesktop,
-          installationId,
-          rowChanges
-        }) => ({
-          hostId,
-          label,
-          health,
-          relay,
-          ...(stoppedOnDesktop ? { stoppedOnDesktop } : {}),
-          ...(unavailableOnDesktop ? { unavailableOnDesktop } : {}),
-          ...(installationId ? { installationId } : {}),
-          ...(rowChanges ? { rowChanges } : {})
-        })
+        ({ environmentId: _environmentId, identity: _identity, ...host }) => host
       )
     }
   }
