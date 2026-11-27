@@ -2,25 +2,28 @@ import { parseExecutionHostId } from '../../../../shared/execution-host/executio
 import type { RpcRequest } from '../core'
 import { denyRpcMethodForCaller, type RpcCallerScope } from '../callers/rpc-caller-scope'
 import type { RpcMethodPermission } from '../callers/rpc-method-permission'
-import { MOBILE_RPC_METHOD_ROUTES } from './runtime-rpc-mobile-method-routing'
+import { runtimeClientRelayRoute } from './runtime-client-relay-routes'
 
 export type RuntimeClientRelayAdmission =
   | { kind: 'run-here' }
   | { kind: 'relay' }
   | { kind: 'refused'; code: 'invalid_argument' | 'forbidden'; message: string }
 
-// Granted for this computer only: they never reach a server it relays to.
+// Granted for this computer only, or about the client's credential here: they never reach a server it relays to.
 const PERMISSIONS_NEVER_RELAYED: ReadonlySet<RpcMethodPermission> = new Set([
   'pairing-admin',
-  'desktop-control'
+  'desktop-control',
+  'device-self'
 ])
 
-/** A paired desktop/web client that names another host never has the call silently run here:
- * execution-host routes relay, routes this computer owns stay here, anything else is refused. */
+/** A paired desktop/web client that names another host has the call relayed there, as the runtime
+ * device that server holds for it. Only this computer's own pairing and relay catalog stay here. */
 export function runtimeClientRelayAdmission(
   request: Pick<RpcRequest, 'method' | 'executionHost'>,
   callerScope: RpcCallerScope,
-  permission: RpcMethodPermission | undefined
+  permission: RpcMethodPermission | undefined,
+  // A device another computer delegated here is relayed by that computer only.
+  delegated = false
 ): RuntimeClientRelayAdmission {
   const { executionHost, method } = request
   if (executionHost === undefined) {
@@ -34,12 +37,11 @@ export function runtimeClientRelayAdmission(
   if (target.kind !== 'runtime') {
     return { kind: 'run-here' }
   }
-  const route = MOBILE_RPC_METHOD_ROUTES.get(method)
-  if (route === 'paired-desktop') {
+  if (runtimeClientRelayRoute(method) === 'this-server') {
     return { kind: 'run-here' }
   }
-  if (route !== 'execution-host') {
-    return forbidden(`Method '${method}' cannot run on a server this computer relays to`)
+  if (delegated) {
+    return forbidden('A client relayed through a paired computer cannot be relayed again')
   }
   // The relay skips local dispatch, so no method_not_found follows to stop an unregistered method.
   if (permission === undefined) {

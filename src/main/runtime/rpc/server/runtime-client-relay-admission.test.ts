@@ -41,22 +41,36 @@ describe('runtimeClientRelayAdmission', () => {
     expect(admit('worktree.ps', 'runtime:wsl:Ubuntu', WORKSPACE)).toBe('relay')
   })
 
-  it('keeps methods this computer answers itself here', () => {
+  it('keeps only its own pairing and relay catalog here', () => {
     expect(admit('mobileRelay.hosts.list', WSL, WORKSPACE)).toBe('run-here')
+    expect(admit('pairing.getEndpoints', WSL, { permission: 'pairing-admin' })).toBe('run-here')
+    expect(admit('host.declareClient', WSL, WORKSPACE)).toBe('run-here')
   })
 
-  it('refuses methods with no execution-host route', () => {
-    expect(admit('no.such.method', WSL, WORKSPACE)).toBe('forbidden')
-    expect(admit('jira.listIssues', WSL, WORKSPACE)).toBe('forbidden')
-    // Registered here and allowed to this client, but never routed to a server.
-    expect(admit('settings.set', WSL, { permission: 'settings-write' })).toBe('forbidden')
+  it('relays what names the host, including methods the phone table lacks or keeps on the desktop', () => {
+    expect(admit('files.write', WSL, WORKSPACE)).toBe('relay')
+    expect(admit('git.createBranch', WSL, WORKSPACE)).toBe('relay')
+    expect(admit('terminal.split', WSL, WORKSPACE)).toBe('relay')
+    expect(admit('settings.update', WSL, { permission: 'settings-write' })).toBe('relay')
   })
 
-  it('refuses a routed method this computer does not register', () => {
+  it('never relays again a client another computer relayed here', () => {
+    const admission = runtimeClientRelayAdmission(
+      { method: 'worktree.ps', executionHost: WSL },
+      PAIRED,
+      'workspace',
+      true
+    )
+    expect(admission.kind === 'refused' && admission.code).toBe('forbidden')
+  })
+
+  it('refuses a method this computer does not register', () => {
     expect(admit('worktree.ps', WSL, {})).toBe('forbidden')
+    expect(admit('no.such.method', WSL, {})).toBe('forbidden')
   })
 
-  it('never relays pairing-admin or desktop-control, even to a client granted them', () => {
+  it('never relays pairing-admin, desktop-control or device-self, even to a client granted them', () => {
+    expect(admit('worktree.ps', WSL, { permission: 'device-self' })).toBe('forbidden')
     const granted: RpcCallerScope = { kind: 'runtime-paired', grants: ['desktop-control'] }
     expect(admit('worktree.ps', WSL, { permission: 'desktop-control', callerScope: granted })).toBe(
       'forbidden'

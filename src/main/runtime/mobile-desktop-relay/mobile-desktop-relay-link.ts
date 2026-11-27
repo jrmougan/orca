@@ -19,7 +19,7 @@ export type OpenedRelayLink = {
   host: MobileDesktopRelayHost
 }
 
-/** A phone, or a paired desktop/web client relayed under runtime.client-relay.v1; the server sees both as phones. */
+/** A phone, or a paired desktop/web client relayed under runtime.client-relay.v1, which the server holds as a runtime device. */
 export type RelayedPhone = RelayedStreamCaller & {
   connectionId: string
   deviceId: string

@@ -22,6 +22,7 @@ import { RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES } from '../../../../shared
 import type { RelayedPhone } from '../../mobile-desktop-relay/mobile-desktop-relay-link'
 import type { RelayedStreamCaller } from '../../mobile-desktop-relay/relayed-client-stream-admission'
 import { runtimeClientRelayAdmission } from './runtime-client-relay-admission'
+import { isDelegatingDesktop } from './pairing/delegated-mobile-devices'
 
 export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
   private readonly stagedReplies = new RuntimeRpcStagedReplies(() => this.runtime.getRuntimeId())
@@ -36,6 +37,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
     reply: (response: string) => void,
     sendBinary: RpcBinarySender,
     socket: AuthenticatedMobileSocket | undefined,
+    // Set for a paired desktop/web client, whose admission already kept this computer's methods here.
     runtimeClient?: Pick<RelayedPhone, 'onServerResolved'> & RelayedStreamCaller
   ): RpcRequest | null {
     const { executionHost } = request
@@ -65,7 +67,8 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
       }
     }
     // Phone workspace tags cannot choose routing; only this Mac's table does.
-    if (target && MOBILE_RPC_METHOD_ROUTES.get(request.method) === 'paired-desktop') {
+    const phoneRoute = runtimeClient ? undefined : MOBILE_RPC_METHOD_ROUTES.get(request.method)
+    if (target && phoneRoute === 'paired-desktop') {
       return request
     }
     const local = target && this.mobileDesktopRelay?.localRequestFor(request, target.environmentId)
@@ -186,7 +189,8 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
       const admission = runtimeClientRelayAdmission(
         request,
         callerScope,
-        this.dispatcher.methodPermission(request.method)
+        this.dispatcher.methodPermission(request.method),
+        device.parentDeviceId !== undefined
       )
       if (admission.kind === 'refused') {
         reply(JSON.stringify(this.buildError(request.id, admission.code, admission.message)))
@@ -241,7 +245,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
     )
     // Sealed per connection: only an encrypted runtime socket on a relaying server may send executionHost.
     const connectionCapabilities =
-      device.scope === 'runtime' && authenticatedSocket && this.mobileDesktopRelay
+      isDelegatingDesktop(device) && authenticatedSocket && this.mobileDesktopRelay
         ? RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES
         : []
     const replyForRequest =
@@ -304,7 +308,8 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
               }
             : undefined,
         delegatedMobileDevices:
-          device.scope === 'runtime'
+          // A delegated child never mints children of its own.
+          isDelegatingDesktop(device)
             ? {
                 sync: (phones) =>
                   this.syncDelegatedMobileDevices(device.deviceId, phones, connectionId)

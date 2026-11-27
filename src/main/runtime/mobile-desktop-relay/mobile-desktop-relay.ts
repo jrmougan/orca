@@ -14,7 +14,7 @@ import {
   type OpenedRelayLink,
   type RelayedPhone
 } from './mobile-desktop-relay-link'
-import { DelegatedPhoneGrantCache } from './delegated-phone-grant-cache'
+import { acceptedGrantFor, DelegatedPhoneGrantCache } from './delegated-phone-grant-cache'
 import { localHostedBrowserPageRequest } from './hosted-browser-page-route'
 import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
 import { RELAYED_STREAM_CARRIERS } from './relayed-stream-carriers'
@@ -282,10 +282,7 @@ export class MobileDesktopRelay {
     if (!this.isCurrent(link)) {
       throw unavailable('The relayed request was cancelled.')
     }
-    const grant = grants.grants.get(phone.deviceId)
-    if (!grant || grants.refused.has(phone.deviceId)) {
-      throw unavailable('The server does not accept this phone.')
-    }
+    const grant = acceptedGrantFor(grants, phone.deviceId)
     return openRelayedPhoneSocket(
       link,
       host,

@@ -7,7 +7,8 @@ import {
   MOBILE_RELAY_HOST_WORKTREES_METHOD,
   MOBILE_RELAY_HOSTS_LIST_METHOD,
   MOBILE_RELAY_HOSTS_UNWATCH_ROWS_METHOD,
-  MobileRelayHostWorktreesParamsSchema
+  MobileRelayHostWorktreesParamsSchema,
+  relayHostsForCaller
 } from '../../../../../shared/remote-runtime/relay/mobile-relay-hosts-contract'
 import { MOBILE_RELAY_HOST_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY } from '../../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
 import type { RelayPhoneReader } from '../../../mobile-desktop-relay/mobile-relay-host-rows-announcer'
@@ -46,7 +47,10 @@ export const MOBILE_RELAY_HOSTS_METHODS = [
     permission: 'workspace',
     params: null,
     handler: async (_params, ctx) =>
-      (await ctx.mobileRelayHosts?.list(capablePhone(ctx, 'relay-host-list'))) ?? { hosts: [] }
+      relayHostsForCaller(
+        (await ctx.mobileRelayHosts?.list(capablePhone(ctx, 'relay-host-list'))) ?? { hosts: [] },
+        ctx.clientKind
+      )
   }),
   defineMethod({
     name: MOBILE_RELAY_HOST_WORKTREES_METHOD,

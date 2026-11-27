@@ -8,6 +8,11 @@ export type DelegatedMobileDeviceEntry = DeviceEntry & {
   token: string
 }
 
+/** Only a desktop paired here in its own right delegates: never a phone, never another delegated child. */
+export function isDelegatingDesktop(parent: DeviceEntry): boolean {
+  return parent.scope === 'runtime' && parent.parentDeviceId === undefined
+}
+
 export function planDelegatedMobileDevices(
   devices: DeviceEntry[],
   parent: DeviceEntry,
@@ -21,9 +26,17 @@ export function planDelegatedMobileDevices(
     return { nextDevices: devices, entries: [] }
   }
   let nextDevices = devices
-  const entries = phones.map((phone) => {
+  const entries = phones.flatMap((phone): DelegatedMobileDeviceEntry[] => {
+    const scope = phone.kind ?? 'mobile'
+    if (scope === 'runtime' && !isDelegatingDesktop(parent)) {
+      return []
+    }
+    // A row of the other scope is never re-scoped under its token; the sync revokes it first.
     const existing = nextDevices.find(
-      (device) => device.parentDeviceId === parent.deviceId && device.phoneKey === phone.phoneKey
+      (device) =>
+        device.parentDeviceId === parent.deviceId &&
+        device.phoneKey === phone.phoneKey &&
+        device.scope === scope
     )
     if (existing) {
       const origin = originClientInstanceId ?? existing.originClientInstanceId
@@ -33,7 +46,7 @@ export function planDelegatedMobileDevices(
         existing.name === phone.name &&
         existing.originClientInstanceId === origin
       ) {
-        return { ...existing, token, parentDeviceId: parent.deviceId, phoneKey: phone.phoneKey }
+        return [{ ...existing, token, parentDeviceId: parent.deviceId, phoneKey: phone.phoneKey }]
       }
       const updated: DelegatedMobileDeviceEntry = {
         ...existing,
@@ -50,12 +63,14 @@ export function planDelegatedMobileDevices(
           : { token })
       }
       nextDevices = nextDevices.map((device) => (device === existing ? updated : device))
-      return updated
+      return [updated]
     }
     const entry: DelegatedMobileDeviceEntry = {
       ...mintDeviceCredential(),
       name: phone.name,
-      scope: 'mobile',
+      // A runtime child holds the standard paired-client permissions and no grants: the parent's
+      // desktop-control is never delegated, and pairing-admin is never a paired client's.
+      scope,
       pairedAt: now,
       // QR rotation targets lastSeenAt === 0; delegated children must never be pending offers.
       lastSeenAt: now,
@@ -65,7 +80,7 @@ export function planDelegatedMobileDevices(
       ...(originClientInstanceId ? { originClientInstanceId } : {})
     }
     nextDevices = [...nextDevices, entry]
-    return entry
+    return [entry]
   })
   return { nextDevices, entries }
 }

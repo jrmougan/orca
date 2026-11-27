@@ -125,7 +125,7 @@ export class DeviceRegistry extends DeviceRegistrySightings {
     return this.devices.filter((device) => device.parentDeviceId === parentDeviceId)
   }
 
-  /** Create-or-return one mobile child per phoneKey under `parent`, in `phones` order. */
+  /** Create-or-return one child per phoneKey under `parent`, in `phones` order, of the kind each asks for. */
   upsertDelegatedMobileDevices(
     parent: DeviceEntry,
     phones: readonly DelegatedPhone[],

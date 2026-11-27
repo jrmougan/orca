@@ -25,6 +25,25 @@ export type MobileRelayHost = {
   installationId?: string
   /** The server publishes worktreeRowsChanged, so phones hear its row changes as relayHostRowsChanged. */
   rowChanges?: true
+  /** The server relays phones but is too old to hold a paired desktop/web client; those read `relay` as `update-needed`. */
+  runtimeClientsNeedUpdate?: true
+}
+
+/** The list as its caller can use it: a paired desktop/web client is not relayed to a server too old for it. */
+export function relayHostsForCaller(
+  result: MobileRelayHostsListResult,
+  clientKind: 'mobile' | 'runtime' | undefined
+): MobileRelayHostsListResult {
+  if (clientKind !== 'runtime') {
+    return result
+  }
+  return {
+    hosts: result.hosts.map((host) =>
+      host.runtimeClientsNeedUpdate && host.relay === 'ready'
+        ? { ...host, relay: 'update-needed' }
+        : host
+    )
+  }
 }
 
 export type MobileRelayHostsListResult = { hosts: MobileRelayHost[] }

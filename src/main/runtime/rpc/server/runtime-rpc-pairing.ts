@@ -19,7 +19,10 @@ import type { MobileDesktopRelayHosts } from '../../mobile-desktop-relay/mobile-
 import { MobileRelayHostCatalog } from '../../mobile-desktop-relay/mobile-relay-host-catalog'
 import { OnDemandServerWorktreeRows } from '../../mobile-desktop-relay/on-demand-server-worktree-rows'
 import { getHostDisplayLabelOverrides } from '../../../../shared/execution-host/host-setting-overrides'
-import { DELEGATED_PHONE_NAME_MAX_CHARS } from '../../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
+import {
+  DELEGATED_PHONE_NAME_MAX_CHARS,
+  type DelegatedPhone
+} from '../../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
 import { allocateTerminalSubscriptionStreamId } from '../methods/terminal/terminal-subscription-stream-id'
 import { isStructuredNativeChatDefaultFor } from '../methods/structured-sessions/structured-agent-session-policy'
 import {
@@ -168,7 +171,7 @@ export class RuntimeRpcPairing extends RuntimeRpcNetworkExposure {
     this.runtime.setPairedWorkspaceContextSource(this.mobileRelayHostCatalog)
   }
 
-  private listRelayedDevices(environmentId: string): { phoneKey: string; name: string }[] {
+  private listRelayedDevices(environmentId: string): DelegatedPhone[] {
     const computerName = this.runtime.readMachineName()
     const devices = this.deviceRegistry?.listDevices() ?? []
     const phones = devices.filter(
@@ -184,7 +187,9 @@ export class RuntimeRpcPairing extends RuntimeRpcNetworkExposure {
     )
     return [...phones, ...runtimeClients].map((device) => ({
       phoneKey: device.deviceId,
-      name: `${device.name} via ${computerName}`.slice(0, DELEGATED_PHONE_NAME_MAX_CHARS)
+      name: `${device.name} via ${computerName}`.slice(0, DELEGATED_PHONE_NAME_MAX_CHARS),
+      // The kind follows this computer's own registry, so a phone can never ask for a runtime child.
+      ...(device.scope === 'runtime' ? { kind: 'runtime' as const } : {})
     }))
   }
 
