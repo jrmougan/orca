@@ -31,6 +31,11 @@ export function relayedStreamRefusal(
   ) {
     return refused('A relayed terminal multiplex already carries this connection’s binary frames')
   }
+  if (carrier === 'unrelayed-client-binary') {
+    return refused(
+      `Method '${method}' is driven by binary frames, which the desktop does not relay`
+    )
+  }
   if (carrier !== 'client-stream-ids') {
     return null
   }

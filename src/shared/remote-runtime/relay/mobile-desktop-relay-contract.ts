@@ -27,9 +27,15 @@ export const RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY = 'runtime.client-relay.v1'
 export const RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY =
   'runtime.client-relay.terminal-multiplex.v1' as const
 
+// The server relays every method that names a host, as the runtime device that host holds for the
+// client. Without it only the phone's execution-host methods cross: the rest would run on the server.
+export const RUNTIME_CLIENT_RELAY_HOST_ROUTES_RUNTIME_CAPABILITY =
+  'runtime.client-relay.host-routes.v1' as const
+
 /** Stamped per connection wherever the server relays runtime clients. */
 export const RUNTIME_CLIENT_RELAY_CONNECTION_CAPABILITIES = [
   RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
+  RUNTIME_CLIENT_RELAY_HOST_ROUTES_RUNTIME_CAPABILITY,
   RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY
 ] as const
 

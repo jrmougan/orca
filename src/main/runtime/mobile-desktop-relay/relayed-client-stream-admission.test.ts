@@ -15,6 +15,12 @@ describe('relayedStreamRefusal', () => {
     )
   })
 
+  it('refuses a stream whose client binary frames have no relayed lane', () => {
+    expect(
+      relayedStreamRefusal('network.portForward', 'unrelayed-client-binary', negotiated, FREE)
+    ).toMatchObject({ code: 'forbidden' })
+  })
+
   it('refuses a relayed multiplex beside streams whose binary input it would take', () => {
     const refusal = { code: 'forbidden' }
     // Local binary streams on the same connection.

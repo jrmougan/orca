@@ -1,11 +1,12 @@
 import {
+  RUNTIME_CLIENT_RELAY_HOST_ROUTES_RUNTIME_CAPABILITY,
   RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
   RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY
 } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
-import {
-  RELAYED_RUNTIME_METHODS,
-  type RelayedRuntimeEnvironment
-} from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
+import type { RelayedRuntimeEnvironment } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
+import { RELAYED_STREAM_CARRIERS } from '../../../runtime/mobile-desktop-relay/relayed-stream-carriers'
+import { runtimeClientRelayRoute } from '../../../runtime/rpc/server/runtime-client-relay-routes'
+import { MOBILE_RPC_METHOD_ROUTES } from '../../../runtime/rpc/server/runtime-rpc-mobile-method-routing'
 import { RemoteRuntimeClientError } from '../../../../shared/remote-runtime/remote-runtime-client-error'
 import type { RemoteRuntimeSubscriptionAdmissionRequest } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-contract'
 import type {
@@ -27,30 +28,41 @@ export function relayedHostFailure(
   return { id: method, ok: false, error: { code, message }, _meta: { runtimeId: null } }
 }
 
-/** Null when `method` may be asked of a relayed server; otherwise this computer's refusal. */
+/**
+ * Null when `method` may be asked of a relayed server; otherwise this computer's refusal. The rule
+ * is the relaying server's own: what names a host goes to it, except what that server answers
+ * itself (its pairing and relay catalog) and streams whose client binary frames it has no lane for.
+ */
 export function relayedHostMethodRefusal(
   method: string,
   ownerName: string
 ): RuntimeRpcFailure | null {
-  if (RELAYED_RUNTIME_METHODS.has(method)) {
+  if (
+    runtimeClientRelayRoute(method) === 'named-host' &&
+    RELAYED_STREAM_CARRIERS.get(method) !== 'unrelayed-client-binary'
+  ) {
     return null
   }
-  // method_not_found: callers with a fallback for an older server (worktree.detectedList) take it.
+  // method_not_found: callers with a fallback for a server that lacks the method take it.
   return relayedHostFailure(
     method,
     'method_not_found',
-    `${method} is not available yet on a server reached through ${ownerName}`
+    `${method} is not available on a server reached through ${ownerName}`
   )
 }
 
 /** The capabilities a server must advertise, on the socket that sends, before `method` names a relayed server. */
 export function relayedHostCapabilitiesFor(method: string): readonly string[] {
-  return method === 'terminal.multiplex'
-    ? [
-        RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
-        RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY
-      ]
-    : [RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY]
+  return [
+    RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
+    // A server that only relays the phone's host methods would run any other one itself.
+    ...(MOBILE_RPC_METHOD_ROUTES.get(method) === 'execution-host'
+      ? []
+      : [RUNTIME_CLIENT_RELAY_HOST_ROUTES_RUNTIME_CAPABILITY]),
+    ...(method === 'terminal.multiplex'
+      ? [RUNTIME_CLIENT_RELAY_TERMINAL_MULTIPLEX_RUNTIME_CAPABILITY]
+      : [])
+  ]
 }
 
 function advertises(status: unknown, required: readonly string[]): boolean {
@@ -63,7 +75,15 @@ function advertises(status: unknown, required: readonly string[]): boolean {
   )
 }
 
-const relayAdmissions: SharedControlSocketAdmissions = new WeakMap()
+// One memo per set of capabilities a socket was asked for.
+const relayAdmissions = new Map<string, SharedControlSocketAdmissions>()
+
+function relayAdmissionsFor(required: readonly string[]): SharedControlSocketAdmissions {
+  const key = required.join('\n')
+  const admissions = relayAdmissions.get(key) ?? new WeakMap()
+  relayAdmissions.set(key, admissions)
+  return admissions
+}
 
 /**
  * Sends one call to a server behind `owner`, on the owner's shared socket. The envelope names the
@@ -94,8 +114,7 @@ export async function sendRelayedHostCall(
       shared,
       { ...request, timeoutMs: call.timeoutMs, idlePassive: call.idlePassive, envelope },
       (status) => advertises(status, required),
-      // The memo records the relay capability alone.
-      required.length === 1 ? relayAdmissions : undefined
+      relayAdmissionsFor(required)
     )
   const unconfirmed = (): RuntimeRpcFailure =>
     relayedHostFailure(

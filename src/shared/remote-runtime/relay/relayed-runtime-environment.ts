@@ -11,47 +11,6 @@ export type RelayedRuntimeEnvironment = {
 }
 
 /**
- * What a relayed server is asked: its catalog, opening a workspace, and its terminals. Anything
- * else is refused before it leaves this computer. Every entry must be an execution-host route on
- * the relaying server: a route that server keeps (settings.get, runtime.clientEvents.subscribe)
- * would be answered with its own data under the relayed server's name.
- */
-export const RELAYED_RUNTIME_METHODS: ReadonlySet<string> = new Set([
-  'status.get',
-  'repo.list',
-  'project.list',
-  'projectHostSetup.list',
-  'projectGroup.list',
-  'folderWorkspace.list',
-  'worktree.list',
-  'worktree.ps',
-  'worktree.show',
-  'worktree.activate',
-  'session.tabs.list',
-  'session.tabs.listAll',
-  'session.tabs.subscribe',
-  'session.tabs.subscribeAll',
-  'session.tabs.activate',
-  'session.tabs.move',
-  'session.tabs.close',
-  'session.tabs.closeLifecycle',
-  'session.tabs.createTerminal',
-  'session.tabs.terminalShellChoices',
-  'terminal.create',
-  'terminal.list',
-  'terminal.read',
-  'terminal.send',
-  'terminal.rename',
-  'terminal.focus',
-  'terminal.clearBuffer',
-  'terminal.close',
-  'terminal.closeTab',
-  'terminal.adoptOrphans',
-  'terminal.updateViewport',
-  'terminal.multiplex'
-])
-
-/**
  * Owner-qualified, so two paired servers may each name a different machine `runtime:vm-1`.
  * Why no pairing revision: host-keyed state (order, filters, collapse) would be orphaned by every
  * re-pair of the same machine; the owner's pairing is fenced where requests and catalogs apply.

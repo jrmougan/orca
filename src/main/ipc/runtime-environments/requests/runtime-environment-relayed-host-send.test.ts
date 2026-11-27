@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { RELAYED_RUNTIME_METHODS } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
-import { MOBILE_RPC_METHOD_ROUTES } from '../../../runtime/rpc/server/runtime-rpc-mobile-method-routing'
+import { OWNER_RPC_CALLER_SCOPE } from '../../../runtime/rpc/callers/rpc-caller-scope'
+import { runtimeClientRelayAdmission } from '../../../runtime/rpc/server/runtime-client-relay-admission'
 import type { AdmittingSharedControlSocket } from '../connections/runtime-environment-admitted-shared-send'
 import {
+  relayedHostMethodRefusal,
   relayedHostSubscriptionAdmission,
   sendRelayedHostCall
 } from './runtime-environment-relayed-host-send'
@@ -80,12 +81,34 @@ describe('sendRelayedHostCall', () => {
     const response = await sendRelayedHostCall(
       socket,
       RELAYED,
-      { ...call, method: 'settings.get' },
+      { ...call, method: 'mobileRelay.hosts.list' },
       'Windows PC'
     )
 
     expect(response).toMatchObject({ ok: false, error: { code: 'method_not_found' } })
     expect(sent).toEqual([])
+  })
+
+  it('sends a method outside the phone table only to a server that relays every host method', async () => {
+    // A server that relays phone methods only would run settings.update on itself.
+    const phoneRoutesOnly = ownerSocket(['runtime.client-relay.v1'])
+    const settings = { ...call, method: 'settings.update' }
+
+    const refused = await sendRelayedHostCall(phoneRoutesOnly.socket, RELAYED, settings, 'PC')
+
+    expect(refused).toMatchObject({ ok: false, error: { code: 'remote_runtime_unavailable' } })
+    expect(phoneRoutesOnly.sent.map((request) => request.method)).toEqual(['status.get'])
+
+    const everyRoute = ownerSocket([
+      'runtime.client-relay.v1',
+      'runtime.client-relay.host-routes.v1'
+    ])
+    await sendRelayedHostCall(everyRoute.socket, RELAYED, settings, 'PC')
+
+    expect(everyRoute.sent.at(-1)).toEqual({
+      method: 'settings.update',
+      executionHost: 'runtime:wsl%3Aubuntu'
+    })
   })
 
   it('does not send a call shaped for another runtime of the relayed host', async () => {
@@ -104,12 +127,29 @@ describe('sendRelayedHostCall', () => {
 })
 
 describe('relayed host methods', () => {
-  it('are all routes the relaying server forwards, never ones it answers itself', () => {
-    const answeredByOwner = [...RELAYED_RUNTIME_METHODS].filter(
-      (method) => MOBILE_RPC_METHOD_ROUTES.get(method) !== 'execution-host'
-    )
+  const sentByClient = (method: string): boolean => relayedHostMethodRefusal(method, 'PC') === null
+  const relayedByServer = (method: string): boolean =>
+    runtimeClientRelayAdmission(
+      { method, executionHost: 'runtime:wsl%3Aubuntu' },
+      OWNER_RPC_CALLER_SCOPE,
+      'workspace'
+    ).kind === 'relay'
 
-    expect(answeredByOwner).toEqual([])
+  it('are sent exactly when the relaying server forwards them, never when it answers itself', () => {
+    const forwarded = ['terminal.split', 'files.write', 'settings.get', 'terminal.multiplex']
+    const answeredByServer = ['mobileRelay.hosts.list', 'pairing.offer', 'host.peerDesktops']
+
+    expect(forwarded.map(sentByClient)).toEqual([true, true, true, true])
+    expect(forwarded.map(relayedByServer)).toEqual([true, true, true, true])
+    expect(answeredByServer.map(sentByClient)).toEqual([false, false, false])
+    expect(answeredByServer.map(relayedByServer)).toEqual([false, false, false])
+  })
+
+  it('keeps streams driven by client binary frames the relay cannot carry on this computer', () => {
+    expect(['network.portForward', 'network.browserTunnel'].map(sentByClient)).toEqual([
+      false,
+      false
+    ])
   })
 })
 
