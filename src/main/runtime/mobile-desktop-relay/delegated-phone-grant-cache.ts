@@ -3,8 +3,28 @@ import {
   type DelegatedMobileDeviceSyncParams
 } from '../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
 import { unavailable } from './mobile-desktop-relay-link'
-import { syncDelegatedPhoneGrants, type DelegatedPhoneGrants } from './delegated-phone-grants'
+import { RUNTIME_CLIENT_RELAY_UPDATE_NEEDED_MESSAGE } from '../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import {
+  syncDelegatedPhoneGrants,
+  type DelegatedPhoneGrant,
+  type DelegatedPhoneGrants
+} from './delegated-phone-grants'
 import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
+
+/** The credential the server minted for this caller, or why it is not relayed there. */
+export function acceptedGrantFor(
+  grants: Extract<DelegatedPhoneGrants, { kind: 'ready' }>,
+  deviceId: string
+): DelegatedPhoneGrant {
+  if (grants.updateNeeded.has(deviceId)) {
+    throw unavailable(RUNTIME_CLIENT_RELAY_UPDATE_NEEDED_MESSAGE)
+  }
+  const grant = grants.grants.get(deviceId)
+  if (!grant || grants.refused.has(deviceId)) {
+    throw unavailable('The server does not accept this phone.')
+  }
+  return grant
+}
 
 type GrantsEntry = {
   promise: Promise<DelegatedPhoneGrants>
@@ -50,7 +70,11 @@ export class DelegatedPhoneGrantCache {
       // A device enrolled mid-sync is missing from that sync's list, so it must re-sync.
       return cached.promise.then((grants) =>
         grants.fence !== host.fence ||
-        (grants.kind === 'ready' && phoneKey !== null && !grants.asked.has(phoneKey))
+        (grants.kind === 'ready' &&
+          phoneKey !== null &&
+          !grants.asked.has(phoneKey) &&
+          // Racing requests share one update-needed answer; like the whole-server one, it is not cached.
+          !grants.updateNeeded.has(phoneKey))
           ? this.get(host, phoneKey)
           : grants
       )

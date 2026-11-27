@@ -1,4 +1,7 @@
-import { DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY } from '../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
+import {
+  DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,
+  DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY
+} from '../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
 import { WORKTREE_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY } from '../../../shared/remote-runtime/protocol/worktree-runtime-capabilities'
 import type { ExecutionHostId } from '../../../shared/execution-host/execution-host'
 import { describePairedServerHosts } from '../../../shared/remote-runtime/host-catalog/paired-server-hosts'
@@ -66,7 +69,8 @@ export function describeRelayHostListing(
         ...(identity.stoppedOnDesktop ? { stoppedOnDesktop: true as const } : {}),
         ...(identity.unavailableOnDesktop ? { unavailableOnDesktop: true as const } : {}),
         ...(identity.wslDistro ? { wsl: { distro: identity.wslDistro } } : {}),
-        ...(publishesRowChanges(answer) ? { rowChanges: true as const } : {})
+        ...(publishesRowChanges(answer) ? { rowChanges: true as const } : {}),
+        ...(runtimeClientsNeedUpdate(answer) ? { runtimeClientsNeedUpdate: true as const } : {})
       }
     ]
   })
@@ -78,6 +82,14 @@ export function relayHostFence(identity: DescribedRelayHost['identity']): string
 
 function publishesRowChanges(answer: RuntimeStatus | null): boolean {
   return (answer?.capabilities ?? []).includes(WORKTREE_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY)
+}
+
+function runtimeClientsNeedUpdate(answer: RuntimeStatus | null): boolean {
+  const capabilities = answer?.capabilities ?? []
+  return (
+    capabilities.includes(DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY) &&
+    !capabilities.includes(DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY)
+  )
 }
 
 function relayVerdict(

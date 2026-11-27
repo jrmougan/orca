@@ -35,7 +35,14 @@ export async function connectPhone(
   cleanups: (() => Promise<void> | void)[],
   scope: 'mobile' | 'runtime' = 'mobile'
 ) {
-  const pairing = pair(desktop, scope, name)
+  return connectPaired(pair(desktop, scope, name), cleanups)
+}
+
+/** Connects with a credential the server already holds, such as a delegated child's token. */
+export async function connectPaired(
+  pairing: Pick<PairingOffer, 'endpoint' | 'publicKeyB64' | 'deviceToken' | 'pairedDeviceId'>,
+  cleanups: (() => Promise<void> | void)[]
+) {
   const keys = generateKeyPair()
   const sharedKey = deriveSharedKey(keys.secretKey, publicKeyFromBase64(pairing.publicKeyB64))
   const ws = new WebSocket(pairing.endpoint)

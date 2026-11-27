@@ -11,9 +11,14 @@ import {
 import {
   DELEGATED_MOBILE_DEVICE_SYNC_METHOD,
   DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,
-  DelegatedMobileDeviceSyncParamsSchema
+  DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY,
+  DelegatedMobileDeviceSyncParamsSchema,
+  type DelegatedPhone
 } from '../../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
-import { RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import {
+  RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY,
+  RUNTIME_CLIENT_RELAY_UPDATE_NEEDED_MESSAGE
+} from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
 import type { MobileDesktopRelayHosts } from '../../mobile-desktop-relay/mobile-desktop-relay-hosts'
 import { connectPhone } from '../../mobile-desktop-relay/mobile-desktop-relay-phone.test-fixture'
 import { OrcaRuntimeService } from '../../orca-runtime'
@@ -28,7 +33,12 @@ afterEach(async () => {
   }
 })
 
-async function startRelayingServer() {
+const CURRENT_HOST = [
+  DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,
+  DELEGATED_RUNTIME_DEVICES_RUNTIME_CAPABILITY
+]
+
+async function startRelayingServer(hostCapabilities: readonly string[] = CURRENT_HOST) {
   const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-client-relay-'))
   const server = new OrcaRuntimeRpcServer({
     runtime: new OrcaRuntimeService(),
@@ -42,7 +52,8 @@ async function startRelayingServer() {
     rmSync(userDataPath, { recursive: true, force: true })
   })
   const opened: string[] = []
-  const syncedPhoneKeys: string[][] = []
+  const synced: Pick<DelegatedPhone, 'phoneKey' | 'kind'>[][] = []
+  const hostCalls: string[] = []
   const hosts: MobileDesktopRelayHosts = {
     list: () => ({
       environments: [],
@@ -69,16 +80,17 @@ async function startRelayingServer() {
         : null
     },
     call: async (_host, method, params) => {
+      hostCalls.push(method)
       if (method !== DELEGATED_MOBILE_DEVICE_SYNC_METHOD) {
         return {
           id: 'status',
           ok: true,
-          result: { capabilities: [DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY] },
+          result: { capabilities: [...hostCapabilities] },
           _meta: { runtimeId: 'wsl-runtime' }
         }
       }
       const { phones } = DelegatedMobileDeviceSyncParamsSchema.parse(params)
-      syncedPhoneKeys.push(phones.map((phone) => phone.phoneKey))
+      synced.push(phones.map(({ phoneKey, kind }) => ({ phoneKey, kind })))
       return {
         id: 'sync',
         ok: true,
@@ -98,12 +110,12 @@ async function startRelayingServer() {
     watchChanges: () => ({ close: () => {}, current: () => false })
   }
   server.setMobileDesktopRelayHosts(hosts)
-  return { server, opened, syncedPhoneKeys }
+  return { server, opened, synced, hostCalls }
 }
 
 describe('a paired runtime client naming a WSL host', () => {
   it('is relayed to that host under either spelling of its id, never run locally', async () => {
-    const { server, opened, syncedPhoneKeys } = await startRelayingServer()
+    const { server, opened, synced } = await startRelayingServer()
     const client = await connectPhone(server, 'Laptop', cleanups, 'runtime')
 
     client.send('encoded', 'worktree.ps', {}, 'runtime:wsl%3AUbuntu')
@@ -117,20 +129,54 @@ describe('a paired runtime client naming a WSL host', () => {
     })
 
     expect(opened).toEqual([WSL_ENVIRONMENT_ID, WSL_ENVIRONMENT_ID, 'wsl:Debian'])
-    // The host mints a device for this client only; the unconfigured host never syncs.
-    expect(syncedPhoneKeys).toEqual([[client.deviceId]])
+    // The host mints a runtime device for this client only; the unconfigured host never syncs.
+    expect(synced).toEqual([[{ phoneKey: client.deviceId, kind: 'runtime' }]])
   })
 
   it('loses its device on the host when its access is revoked here', async () => {
-    const { server, syncedPhoneKeys } = await startRelayingServer()
+    const { server, synced } = await startRelayingServer()
     const client = await connectPhone(server, 'Laptop', cleanups, 'runtime')
     client.send('open', 'worktree.ps', {}, 'runtime:wsl%3AUbuntu')
     await client.next('open')
-    expect(syncedPhoneKeys).toEqual([[client.deviceId]])
+    const child = { phoneKey: client.deviceId, kind: 'runtime' }
+    expect(synced).toEqual([[child]])
 
     expect(server.revokeRuntimeAccess(client.deviceId)).toBe(true)
 
-    await vi.waitFor(() => expect(syncedPhoneKeys).toEqual([[client.deviceId], []]))
+    await vi.waitFor(() => expect(synced).toEqual([[child], []]))
+  })
+
+  it('asks for a phone child for a phone, whatever host it names', async () => {
+    const { server, synced } = await startRelayingServer()
+    const phone = await connectPhone(server, 'Phone', cleanups)
+
+    phone.send('open', 'worktree.ps', {}, 'runtime:wsl%3AUbuntu')
+    await phone.next('open')
+
+    expect(synced).toEqual([[{ phoneKey: phone.deviceId, kind: undefined }]])
+  })
+
+  it('is refused on a host too old for runtime devices: no phone device stands in, nothing runs here', async () => {
+    const { server, synced, hostCalls } = await startRelayingServer([
+      DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY
+    ])
+    const client = await connectPhone(server, 'Laptop', cleanups, 'runtime')
+    const phone = await connectPhone(server, 'Phone', cleanups)
+
+    client.send('write', 'files.write', {}, 'runtime:wsl%3AUbuntu')
+    expect(await client.next('write')).toMatchObject({
+      ok: false,
+      error: {
+        code: 'remote_runtime_unavailable',
+        message: RUNTIME_CLIENT_RELAY_UPDATE_NEEDED_MESSAGE
+      }
+    })
+    phone.send('open', 'worktree.ps', {}, 'runtime:wsl%3AUbuntu')
+    await phone.next('open')
+
+    // The client is never sent, as a phone or otherwise; the phone still is.
+    expect(synced.flat()).toEqual([{ phoneKey: phone.deviceId, kind: undefined }])
+    expect(hostCalls).not.toContain('files.write')
   })
 
   it('advertises the relay to runtime clients only', async () => {
