@@ -18,11 +18,14 @@ export type OpenedRelayLink = {
   host: MobileDesktopRelayHost
 }
 
+/** A phone, or a paired desktop/web client relayed under runtime.client-relay.v1; the server sees both as phones. */
 export type RelayedPhone = {
   connectionId: string
   deviceId: string
   deviceToken: string
   clientCapabilities: () => readonly RuntimeCapability[]
+  /** Runs once the target names a configured server, before its sync asks for this caller's grant. */
+  onServerResolved?: (environmentId: string) => void
   reply: (frame: string) => void
   sendBinary: (bytes: Uint8Array<ArrayBufferLike>) => boolean | void
 }
@@ -84,6 +87,9 @@ export class RelayLink {
       throw unavailable('The server was disconnected on this computer.')
     }
     this.paired = true
+    if (host) {
+      this.phone.onServerResolved?.(this.environmentId)
+    }
     return host
   }
 

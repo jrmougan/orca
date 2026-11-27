@@ -18,6 +18,8 @@ import { parseExecutionHostId } from '../../../../shared/execution-host/executio
 import { WorktreeRemove } from '../../../../shared/rpc-contract/workspaces/worktree-params'
 import { createPairingDirectEndpointsReader } from './pairing/network/pairing-direct-endpoints'
 import { socketPairingRpcContext } from './runtime-rpc-socket-pairing-context'
+import { RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY } from '../../../../shared/remote-runtime/relay/mobile-desktop-relay-contract'
+import { runtimeClientRelayAdmission } from './runtime-client-relay-admission'
 
 export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
   private readonly stagedReplies = new RuntimeRpcStagedReplies(() => this.runtime.getRuntimeId())
@@ -31,11 +33,16 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
     rawMessage: string,
     reply: (response: string) => void,
     sendBinary: RpcBinarySender,
-    socket: AuthenticatedMobileSocket | undefined
+    socket: AuthenticatedMobileSocket | undefined,
+    onServerResolved?: (environmentId: string) => void
   ): RpcRequest | null {
     const { executionHost } = request
     if (executionHost === undefined) {
       return request
+    }
+    const refuse = (code: string, message: string): null => {
+      reply(JSON.stringify(this.buildError(request.id, code, message)))
+      return null
     }
     const target = parseExecutionHostId(typeof executionHost === 'string' ? executionHost : null)
     if (target?.kind === 'local' || target?.kind === 'ssh') {
@@ -52,16 +59,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
         }
       } catch (error) {
         // Ambiguous ownership must answer the phone instead of leaving it waiting.
-        reply(
-          JSON.stringify(
-            this.buildError(
-              request.id,
-              'invalid_argument',
-              error instanceof Error ? error.message : String(error)
-            )
-          )
-        )
-        return null
+        return refuse('invalid_argument', error instanceof Error ? error.message : String(error))
       }
     }
     // Phone workspace tags cannot choose routing; only this Mac's table does.
@@ -73,29 +71,11 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
       return local
     }
     if (!target) {
-      reply(
-        JSON.stringify(this.buildError(request.id, 'invalid_argument', 'Invalid executionHost'))
-      )
+      refuse('invalid_argument', 'Invalid executionHost')
     } else if (!socket) {
-      reply(
-        JSON.stringify(
-          this.buildError(
-            request.id,
-            'remote_runtime_unavailable',
-            'Servers are reachable only over an encrypted pairing'
-          )
-        )
-      )
+      refuse('remote_runtime_unavailable', 'Servers are reachable only over an encrypted pairing')
     } else if (!this.mobileDesktopRelay) {
-      reply(
-        JSON.stringify(
-          this.buildError(
-            request.id,
-            'remote_runtime_unavailable',
-            'This computer does not relay to servers'
-          )
-        )
-      )
+      refuse('remote_runtime_unavailable', 'This computer does not relay to servers')
     } else {
       this.mobileDesktopRelay.forward(
         {
@@ -103,6 +83,7 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
           deviceId: socket.device.deviceId,
           deviceToken: socket.device.clientId,
           clientCapabilities: () => socket.clientCapabilities,
+          onServerResolved,
           reply,
           sendBinary: (bytes) => {
             sendBinary(bytes)
@@ -200,6 +181,32 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
         return
       }
       request = localRequest
+    } else if (device.scope === 'runtime') {
+      // Judged on every runtime socket: without an encrypted one the relay refuses, it never runs here.
+      const admission = runtimeClientRelayAdmission(
+        request,
+        callerScope,
+        this.dispatcher.methodPermission(request.method)
+      )
+      if (admission.kind === 'refused') {
+        reply(JSON.stringify(this.buildError(request.id, admission.code, admission.message)))
+        return
+      }
+      if (admission.kind === 'relay') {
+        const localRequest = this.relayMobileRequest(
+          request,
+          rawMessage,
+          reply,
+          sendBinary,
+          authenticatedSocket,
+          // Mint this client a device only on a server it actually reached.
+          (environmentId) => this.relayedRuntimeClients.add(environmentId, device.deviceId)
+        )
+        if (!localRequest) {
+          return
+        }
+        request = localRequest
+      }
     }
 
     // Why: bind the device to this socket so ws.on('close') knows which client disconnected.
@@ -228,9 +235,15 @@ export class RuntimeRpcWebSocketDispatch extends RuntimeRpcMobileDevices {
         abortRegistration?.signal
       )
     )
+    // Sealed per connection: only an encrypted runtime socket on a relaying server may send executionHost.
+    const connectionCapabilities =
+      device.scope === 'runtime' && authenticatedSocket && this.mobileDesktopRelay
+        ? [RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY]
+        : []
     const replyForRequest =
       request.method === 'status.get'
-        ? (response: string): void => boundedReply(injectDeviceScope(response, device.scope))
+        ? (response: string): void =>
+            boundedReply(injectDeviceScope(response, device.scope, connectionCapabilities))
         : boundedReply
 
     const connectionId = ws ? this.mobileSocketWiring?.getConnectionId(ws) : undefined

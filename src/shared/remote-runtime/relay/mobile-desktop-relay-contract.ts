@@ -15,6 +15,10 @@ export const MOBILE_RELAY_HOSTS_CHANGED_EVENT_RUNTIME_CAPABILITY =
 export const MOBILE_RELAY_HOST_ROWS_CHANGED_EVENT_RUNTIME_CAPABILITY =
   'mobile.relay-host-rows-changed-event.v1' as const
 
+// Paired desktop/web clients send executionHost only when this is advertised; older servers run it locally.
+// Stamped per connection, so it is not in RUNTIME_CAPABILITIES: only a server wired to its hosts relays.
+export const RUNTIME_CLIENT_RELAY_RUNTIME_CAPABILITY = 'runtime.client-relay.v1' as const
+
 /** A desktop relays a phone to a server that mints delegated phone devices; each side advertises. */
 export const MOBILE_RELAY_RUNTIME_CAPABILITIES = [
   DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY,

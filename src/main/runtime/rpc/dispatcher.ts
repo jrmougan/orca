@@ -62,6 +62,9 @@ export class RpcDispatcher {
     this.legacyOrchestration = new OrchestrationLegacyCompatibility(runtime)
   }
 
+  /** For transports that act on a call before dispatch, such as relaying it to another server. */
+  readonly methodPermission = (name: string) => this.registry.get(name)?.permission
+
   async dispatch(request: RpcRequest, options?: RpcDispatchStreamingOptions): Promise<RpcResponse> {
     const meta = this.meta()
     const pendingAdmission = this.admit(

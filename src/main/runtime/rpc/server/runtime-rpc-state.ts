@@ -49,6 +49,7 @@ import {
 } from './runtime-rpc-pairing-types'
 import { DeclaredDesktopClients } from './pairing/declared-desktop-clients'
 import { AuthenticatedSourceRecorder } from './network-source-policy-store'
+import { RelayedRuntimeClients } from './relayed-runtime-clients'
 import type { ServeNetworkSourceOptions } from './serve-network-source-policy'
 import type { WebSocketSourceGuard } from '../transports/websocket/source-admission/ws-network-source-guard'
 
@@ -98,6 +99,8 @@ export class RuntimeRpcState {
   protected mobileRelayPairingProvider: MobileRelayPairingProvider | null = null
   // Why nullable: launch sets both for every runtime process; in-process test servers may not.
   protected mobileDesktopRelay: MobileDesktopRelay | null = null
+  // A paired desktop/web client gets a device on a server only after relaying there; pairing alone mints none.
+  protected readonly relayedRuntimeClients = new RelayedRuntimeClients()
   protected mobileRelayHostCatalog: MobileRelayHostCatalog | null = null
   protected detachPairedServerRows: (() => void) | null = null
   protected detachRelayHostsChanges: (() => void) | null = null

@@ -116,7 +116,7 @@ export class MobileSocketWiring {
     let removed: string[] = []
     try {
       removed = this.deviceRegistry.pruneIdleEphemeralDevices(now, (deviceId) =>
-        this.hasAuthenticatedSocket(deviceId)
+        this.hasLiveConnection(deviceId)
       )
     } catch (error) {
       console.error('[mobile] Failed to prune idle browser-session devices:', error)
@@ -127,7 +127,7 @@ export class MobileSocketWiring {
     return removed
   }
 
-  private hasAuthenticatedSocket(deviceId: string): boolean {
+  hasLiveConnection(deviceId: string): boolean {
     return Array.from(this.authenticatedSockets.values()).some(
       (socket) => socket.device.deviceId === deviceId
     )

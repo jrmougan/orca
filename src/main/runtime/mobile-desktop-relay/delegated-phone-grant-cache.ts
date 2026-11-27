@@ -1,4 +1,8 @@
-import type { DelegatedMobileDeviceSyncParams } from '../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
+import {
+  DELEGATED_MOBILE_DEVICE_SYNC_MAX_PHONES,
+  type DelegatedMobileDeviceSyncParams
+} from '../../../shared/remote-runtime/pairing/delegated-mobile-device-contract'
+import { unavailable } from './mobile-desktop-relay-link'
 import { syncDelegatedPhoneGrants, type DelegatedPhoneGrants } from './delegated-phone-grants'
 import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
 
@@ -14,7 +18,9 @@ export class DelegatedPhoneGrantCache {
 
   constructor(
     private readonly hosts: MobileDesktopRelayHosts,
-    private readonly listPhones: () => DelegatedMobileDeviceSyncParams['phones']
+    private readonly listPhones: (
+      environmentId: string
+    ) => DelegatedMobileDeviceSyncParams['phones']
   ) {}
 
   environmentIds(): string[] {
@@ -31,10 +37,22 @@ export class DelegatedPhoneGrantCache {
 
   /** `phoneKey: null` accepts any answered sync; a phone the sync never asked about re-syncs. */
   get(host: MobileDesktopRelayHost, phoneKey: string | null): Promise<DelegatedPhoneGrants> {
+    if (phoneKey !== null && this.pastSyncCap(host.environmentId, phoneKey)) {
+      // Phones rank first and the cap never drops them; a device past it fails fast, without a sync per request.
+      return Promise.reject(
+        unavailable(
+          `This computer already relays ${DELEGATED_MOBILE_DEVICE_SYNC_MAX_PHONES} devices to that server.`
+        )
+      )
+    }
     const cached = this.entries.get(host.environmentId)
     if (cached && !cached.settled) {
+      // A device enrolled mid-sync is missing from that sync's list, so it must re-sync.
       return cached.promise.then((grants) =>
-        grants.fence === host.fence ? grants : this.get(host, phoneKey)
+        grants.fence !== host.fence ||
+        (grants.kind === 'ready' && phoneKey !== null && !grants.asked.has(phoneKey))
+          ? this.get(host, phoneKey)
+          : grants
       )
     }
     const answered =
@@ -45,9 +63,16 @@ export class DelegatedPhoneGrantCache {
     return answered && cached.result ? Promise.resolve(cached.result) : this.sync(host)
   }
 
+  private pastSyncCap(environmentId: string, phoneKey: string): boolean {
+    return (
+      this.listPhones(environmentId).findIndex((phone) => phone.phoneKey === phoneKey) >=
+      DELEGATED_MOBILE_DEVICE_SYNC_MAX_PHONES
+    )
+  }
+
   private sync(host: MobileDesktopRelayHost): Promise<DelegatedPhoneGrants> {
     const entry: GrantsEntry = {
-      promise: syncDelegatedPhoneGrants(this.hosts, host, this.listPhones()),
+      promise: syncDelegatedPhoneGrants(this.hosts, host, this.listPhones(host.environmentId)),
       settled: false
     }
     this.entries.set(host.environmentId, entry)

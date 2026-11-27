@@ -40,7 +40,8 @@ export class MobileDesktopRelay {
   constructor(
     private readonly options: RelayedDesktopDefaults & {
       hosts: MobileDesktopRelayHosts
-      listPhones: () => DelegatedMobileDeviceSyncParams['phones']
+      /** The callers to keep delegated devices for on that server. */
+      listPhones: (environmentId: string) => DelegatedMobileDeviceSyncParams['phones']
       allocateStreamId: () => number
       prepareBrowserHost?: (host: MobileDesktopRelayHost) => Promise<string | null>
     }
