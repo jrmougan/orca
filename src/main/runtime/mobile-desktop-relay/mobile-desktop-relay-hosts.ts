@@ -32,6 +32,8 @@ export type MobileDesktopRelayHostListing = {
   stoppedOnDesktop?: true
   /** This desktop's own WSL host, not connected here (yet unconfirmed stopped). */
   unavailableOnDesktop?: true
+  /** The distro of this desktop's own WSL host. */
+  wslDistro?: string
 }
 
 /** Bound calls and reject stale pairing/runtime identity via expected. */

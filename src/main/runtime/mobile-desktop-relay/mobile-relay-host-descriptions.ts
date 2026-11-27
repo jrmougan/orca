@@ -65,6 +65,7 @@ export function describeRelayHostListing(
         ...(host.installationId ? { installationId: host.installationId } : {}),
         ...(identity.stoppedOnDesktop ? { stoppedOnDesktop: true as const } : {}),
         ...(identity.unavailableOnDesktop ? { unavailableOnDesktop: true as const } : {}),
+        ...(identity.wslDistro ? { wsl: { distro: identity.wslDistro } } : {}),
         ...(publishesRowChanges(answer) ? { rowChanges: true as const } : {})
       }
     ]

@@ -7,6 +7,7 @@ import { listEnvironments } from '../../../../shared/remote-runtime/host-store/r
 import { prepareRuntimeEnvironmentBrowserPlacement } from '../browser-hosting/runtime-environment-browser-placement'
 import {
   getPreferredPairingOffer,
+  isWslHostRuntimeEnvironment,
   type KnownRuntimeEnvironment
 } from '../../../../shared/remote-runtime/host-catalog/runtime-environments'
 import { classifyRuntimeEnvironmentHost } from '../../../../shared/remote-runtime/host-catalog/runtime-environment-host-kind'
@@ -129,7 +130,10 @@ export function createRuntimeEnvironmentMobileRelayHosts(): MobileDesktopRelayHo
           pairingRevision: pairingRevision(environment),
           runtimeId: environment.runtimeId,
           ...(environment.pairedDeviceId ? { pairedDeviceId: environment.pairedDeviceId } : {}),
-          ...desktopWslHostFlags(reachById.get(environment.id) ?? null)
+          ...desktopWslHostFlags(reachById.get(environment.id) ?? null),
+          ...(isWslHostRuntimeEnvironment(environment)
+            ? { wslDistro: environment.orcadDeployment.distro }
+            : {})
         })),
         statusByEnvironmentId
       }

@@ -19,6 +19,8 @@ export type MobileRelayHost = {
   stoppedOnDesktop?: true
   /** This desktop's own WSL host, not connected there and not known stopped; older phones show "Connecting". */
   unavailableOnDesktop?: true
+  /** This desktop's own WSL host, with its distro name; absent for any other server. */
+  wsl?: { distro: string }
   /** The server's store identity as the desktop verified it; cross-store records name it. */
   installationId?: string
   /** The server publishes worktreeRowsChanged, so phones hear its row changes as relayHostRowsChanged. */
