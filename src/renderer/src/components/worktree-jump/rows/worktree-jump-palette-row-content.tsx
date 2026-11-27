@@ -8,7 +8,11 @@ import type { PaletteSearchResult } from '@/lib/workspace/search/worktrees/workt
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { splitPathHeadForElision } from '@/lib/path-display/path-head-elision'
 import { RepoBadgeMark } from '@/components/repo/RepoBadgeLabel'
-import { useWslHostDistro, WslHostMark } from '@/components/wsl-host-mark/WslHostMark'
+import {
+  isRelayedWslHostId,
+  useWslHostDistro,
+  WslHostMark
+} from '@/components/wsl-host-mark/WslHostMark'
 import { cn } from '@/lib/class-names'
 
 const NO_SECONDARY_MATCHES: readonly { text: string; ranges: readonly MatchRange[] }[] = []
@@ -312,10 +316,11 @@ export function PaletteHostBadgeChip({
   if (!badge) {
     return null
   }
-  if (wslDistro) {
+  const relayed = isRelayedWslHostId(badge.hostId)
+  if (wslDistro && !relayed) {
     return <WslHostMark distro={wslDistro} />
   }
-  return (
+  const label = (
     <span
       aria-label={t('auto.components.WorktreeJumpPalette.paletteHostBadge', 'Host: {{value0}}', {
         value0: badge.label
@@ -324,6 +329,15 @@ export function PaletteHostBadgeChip({
     >
       {badge.label}
     </span>
+  )
+  // A paired computer's distro keeps that computer's label beside the mark.
+  return wslDistro ? (
+    <>
+      {label}
+      <WslHostMark distro={wslDistro} />
+    </>
+  ) : (
+    label
   )
 }
 

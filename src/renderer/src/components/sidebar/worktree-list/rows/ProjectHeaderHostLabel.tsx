@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { HostRowIcon } from '@/components/host-picker/host-row-icon'
 import {
+  isRelayedWslHostId,
   useWslHostDistro,
   WslHostMark,
   wslHostRunsOnLabel
@@ -16,7 +17,8 @@ export function ProjectHeaderHostLabel({
   context: ProjectHeaderHostContext
 }): React.JSX.Element {
   const wslDistro = useWslHostDistro(context.hostId)
-  if (wslDistro) {
+  const relayed = isRelayedWslHostId(context.hostId)
+  if (wslDistro && !relayed) {
     // The header's identity tooltip names the host, so the mark has none of its own.
     return <WslHostMark distro={wslDistro} withTooltip={false} />
   }
@@ -24,6 +26,7 @@ export function ProjectHeaderHostLabel({
     <span className="flex min-w-0 max-w-1/2 shrink-0 items-center gap-1 text-xs font-normal leading-4 text-muted-foreground">
       <HostRowIcon hostId={context.hostId} className="size-3.5 shrink-0" />
       <span className="truncate">{context.label}</span>
+      {wslDistro ? <WslHostMark distro={wslDistro} withTooltip={false} /> : null}
     </span>
   )
 }
@@ -59,6 +62,7 @@ function ProjectHeaderIdentityTooltip({
   const [open, setOpen] = useState(false)
   const actionOwnsTooltip = useRef(false)
   const wslDistro = useWslHostDistro(context.hostId)
+  const relayed = isRelayedWslHostId(context.hostId)
   return (
     <Tooltip
       open={open}
@@ -92,7 +96,8 @@ function ProjectHeaderIdentityTooltip({
         sideOffset={8}
         className="max-w-80 whitespace-normal break-words text-left"
       >
-        {label} — {wslDistro ? wslHostRunsOnLabel(wslDistro, t) : context.label}
+        {label} — {wslDistro && !relayed ? wslHostRunsOnLabel(wslDistro, t) : context.label}
+        {wslDistro && relayed ? <div>{wslHostRunsOnLabel(wslDistro, t)}</div> : null}
         {context.detail !== context.label ? <div>{context.detail}</div> : null}
       </TooltipContent>
     </Tooltip>

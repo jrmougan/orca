@@ -7,6 +7,7 @@ import type { Translate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store/index'
 import { cn } from '@/lib/class-names'
 import { parseExecutionHostId } from '../../../../shared/execution-host/execution-host'
+import { isRelayedRuntimeEnvironmentId } from '../../../../shared/remote-runtime/relay/relayed-runtime-environment'
 import {
   isWslHostRuntimeEnvironment,
   type OrcadDeploymentLink
@@ -20,12 +21,20 @@ export function selectWslHostDistro(
       id: string
       orcadDeployment?: OrcadDeploymentLink | null
     }[]
+    /** A paired computer's WSL hosts, known by the distro that computer's relay listed. */
+    relayedWslHosts?: readonly { environmentId: string; distro: string }[]
   },
   hostId: string | null | undefined
 ): string | null {
   const host = parseExecutionHostId(hostId)
   if (host?.kind !== 'runtime') {
     return null
+  }
+  if (isRelayedRuntimeEnvironmentId(host.environmentId)) {
+    return (
+      state.relayedWslHosts?.find((relayed) => relayed.environmentId === host.environmentId)
+        ?.distro ?? null
+    )
   }
   const environment = (state.runtimeEnvironments ?? []).find(
     (candidate) => candidate.id === host.environmentId
@@ -37,6 +46,12 @@ export function selectWslHostDistro(
 
 export function useWslHostDistro(hostId: string | null | undefined): string | null {
   return useAppStore((state) => selectWslHostDistro(state, hostId))
+}
+
+/** A paired computer's WSL host: its mark sits beside that computer's label instead of replacing it. */
+export function isRelayedWslHostId(hostId: string | null | undefined): boolean {
+  const host = parseExecutionHostId(hostId)
+  return host?.kind === 'runtime' && isRelayedRuntimeEnvironmentId(host.environmentId)
 }
 
 export function wslHostRunsOnLabel(distro: string, t: Translate = translate): string {

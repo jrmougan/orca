@@ -1,5 +1,9 @@
 import React from 'react'
-import { useWslHostDistro, WslHostMark } from '@/components/wsl-host-mark/WslHostMark'
+import {
+  isRelayedWslHostId,
+  useWslHostDistro,
+  WslHostMark
+} from '@/components/wsl-host-mark/WslHostMark'
 import { getWorktreeExecutionHostId } from '../../../../../../shared/execution-host/execution-host'
 import CacheTimer from '../activity/CacheTimer'
 import { TruncatedSidebarLabel } from '../../../ui/truncated-sidebar-label'
@@ -86,8 +90,20 @@ function sshControl(props: Readonly<Record<string, unknown>>, card: Card): React
 }
 
 function CardHostBadge({ card, label }: { card: Card; label: string }): React.JSX.Element {
-  const wslDistro = useWslHostDistro(getWorktreeExecutionHostId(card.worktree, card.repo))
-  return wslDistro ? <WslHostMark distro={wslDistro} /> : <WorktreeHostContextBadge label={label} />
+  const hostId = getWorktreeExecutionHostId(card.worktree, card.repo)
+  const wslDistro = useWslHostDistro(hostId)
+  if (!wslDistro) {
+    return <WorktreeHostContextBadge label={label} />
+  }
+  // A paired computer's distro keeps that computer's label: the mark alone would not say whose it is.
+  return isRelayedWslHostId(hostId) ? (
+    <>
+      <WorktreeHostContextBadge label={label} />
+      <WslHostMark distro={wslDistro} />
+    </>
+  ) : (
+    <WslHostMark distro={wslDistro} />
+  )
 }
 
 function sidebarLabel(text: string, tooltip: unknown): React.ReactNode {
